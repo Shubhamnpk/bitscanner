@@ -117,6 +117,7 @@ const BACKGROUND_FINISHES = [
 ];
 
 type InspectorTab = 'enhance' | 'markup' | 'watermark';
+type MobileToolTab = 'crop' | 'enhance' | 'markup' | 'watermark' | 'ocr';
 type DrawTool = 'none' | 'highlighter' | 'pen';
 
 type PointerDragState =
@@ -174,8 +175,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [dragOverPageIdx, setDragOverPageIdx] = useState<number | null>(null);
   const [appliedAllNotice, setAppliedAllNotice] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('enhance');
-  const [mobileTrayOpen, setMobileTrayOpen] = useState(initialMode === 'edit');
-  const [mobileTab, setMobileTab] = useState<InspectorTab>('enhance');
+  const [mobilePanel, setMobilePanel] = useState<MobileToolTab>('enhance');
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [viewOcrOpen, setViewOcrOpen] = useState(false);
   const [viewPagesOpen, setViewPagesOpen] = useState(false);
   const [ocrSearchQuery, setOcrSearchQuery] = useState('');
@@ -201,7 +202,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [inlineTextEditId, setInlineTextEditId] = useState<string | null>(null);
   const [aspectLocked, setAspectLocked] = useState(true);
 
-  // Stage geometry & multi-touch pinch-to-zoom / pan refs
+  // Gesture zoom refs (pinch-to-zoom & double-tap)
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.matchMedia('(max-width: 768px)').matches;
+  const oldBitScannerMobileEditor = isMobile && editorMode === 'edit';
   const stageViewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageDims, setStageDims] = useState<{ width: number; height: number }>({
@@ -220,6 +223,28 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     origPanY: number;
   } | null>(null);
   const lastStageTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  
+  // Gesture handling for mobile vs desktop
+  useEffect(() => {
+    // Improve gesture handling for mobile: prevent default scrolling on the stage 
+    // when we are in edit mode or zoomed in, allowing the user to move images with their hand.
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const preventDefault = (e: TouchEvent) => {
+      if (e.touches.length > 1 || (isMobile && editorMode === 'edit') || zoomScale > 1.0) {
+        e.preventDefault();
+      }
+    };
+
+    stage.addEventListener('touchstart', preventDefault, { passive: false });
+    stage.addEventListener('touchmove', preventDefault, { passive: false });
+
+    return () => {
+      stage.removeEventListener('touchstart', preventDefault);
+      stage.removeEventListener('touchmove', preventDefault);
+    };
+  }, [isMobile, editorMode, zoomScale]);
 
   useEffect(() => {
     setZoomScale(1.0);
@@ -332,7 +357,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     setInlineTextEditId(null);
     setDrawTool('none');
     setCompareOriginal(false);
-    setMobileTrayOpen(false);
+    setMobilePanelOpen(false);
     setEditorMode('view');
     setSavedNotice(true);
     window.setTimeout(() => setSavedNotice(false), 1800);
@@ -354,7 +379,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     setInlineTextEditId(null);
     setDrawTool('none');
     setCompareOriginal(false);
-    setMobileTrayOpen(false);
+    setMobilePanelOpen(false);
     setEditorMode('view');
   };
 
@@ -464,6 +489,27 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       activePage.flipH,
       bg
     );
+  };
+
+  const filterPreviewStyle = (filter: FilterPreset): React.CSSProperties => {
+    switch (filter) {
+      case 'original':
+        return {};
+      case 'magic_color':
+        return { filter: 'contrast(120%) saturate(140%) brightness(105%)' };
+      case 'lighten':
+        return { filter: 'brightness(120%) contrast(110%)' };
+      case 'grayscale':
+        return { filter: 'grayscale(100%)' };
+      case 'bw':
+        return { filter: 'grayscale(100%) contrast(150%) brightness(110%)' };
+      case 'bw_sharp':
+        return { filter: 'grayscale(100%) contrast(200%) brightness(110%)' };
+      case 'shadow_remove':
+        return { filter: 'brightness(120%) contrast(110%) saturate(120%)' };
+      default:
+        return {};
+    }
   };
 
   const showAppliedNotice = (msg: string) => {
@@ -943,8 +989,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const selectOverlayForEdit = (ann: AnnotationItem) => {
     setSelectedAnnId(ann.id);
     setInspectorTab('markup');
-    setMobileTab('markup');
-    setMobileTrayOpen(true);
+    setMobilePanel('markup');
+    setMobilePanelOpen(true);
   };
 
   const handleRunOcr = async () => {
@@ -1538,9 +1584,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }
                   : {}),
               }}
-              className={`relative w-full max-w-[520px] bg-white shadow-2xl select-none transition-transform duration-75 ease-out ${
+              className={`relative w-full max-w-[520px] bg-white shadow-2xl select-none touch-none transition-transform duration-75 ease-out ${
                 editorMode === 'edit' && drawTool !== 'none'
-                  ? 'cursor-crosshair touch-none'
+                  ? 'cursor-crosshair'
                   : zoomScale > 1.02
                     ? 'cursor-grab active:cursor-grabbing'
                     : ''
@@ -1641,7 +1687,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   origY: ann.y,
                                   moved: false,
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  e.currentTarget.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Touch browsers can refuse capture; stage-level handlers still receive moves via bubbling
+                                }
                               }
                             : undefined
                         }
@@ -2951,31 +3001,31 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         )}
       </div>
 
-      {/* MOBILE COLLAPSIBLE EDIT TOOL TRAY + 5-TAB EDIT DOCK — ONLY shown in EDIT MODE */}
+      {/* OLD BITSCAN MOBILE EDIT TOOL TRAY + DARK ACTION DOCK — ONLY shown in EDIT MODE on mobile */}
       {editorMode === 'edit' && (
         <div
           data-testid="edit-mode-mobile-dock"
-          className="lg:hidden shrink-0 border-t border-slate-200 bg-white pb-safe"
+          className="lg:hidden shrink-0 bg-slate-900"
         >
-          {mobileTrayOpen && (
-            <div className="max-h-[42dvh] overflow-y-auto border-b border-slate-200 bg-white px-4 py-3 animate-sheet-up">
+          {mobilePanelOpen && (
+            <div className="max-h-[42dvh] overflow-y-auto border-b border-slate-800 bg-slate-900 px-4 py-3 animate-sheet-up">
               <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-900 capitalize">
-                  {mobileTab}
+                <span className="text-xs font-bold text-white capitalize">
+                  {mobilePanel}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setMobileTrayOpen(false)}
-                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  onClick={() => setMobilePanelOpen(false)}
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white"
                 >
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                   <span>Hide</span>
                 </button>
               </div>
 
-              {mobileTab === 'enhance' && (
+              {mobilePanel === 'enhance' && (
                 <div className="flex flex-col gap-3">
-                  <div className="flex gap-2 overflow-x-auto pb-1">
+                  <div className="flex gap-3 overflow-x-auto pb-1 px-0.5">
                     {FILTER_PRESETS.map((preset) => {
                       const active = activePage.filter === preset.id;
                       return (
@@ -2983,13 +3033,18 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           key={preset.id}
                           type="button"
                           onClick={() => handleFilterClick(preset.id)}
-                          className={`shrink-0 rounded-xl border px-3.5 py-2.5 text-xs font-semibold whitespace-nowrap active:scale-95 transition-transform cursor-pointer ${
-                            active
-                              ? 'border-teal-600 bg-teal-50 text-teal-900'
-                              : 'border-slate-200 bg-white text-slate-700'
-                          }`}
+                          className="flex flex-col items-center gap-1.5 min-w-[52px] transition-all active:scale-95"
                         >
-                          {preset.label}
+                          <div className={`h-12 w-12 rounded-full border-2 overflow-hidden bg-slate-800 ${
+                            active ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-slate-600'
+                          }`}>
+                            <div className="h-full w-full bg-white flex items-center justify-center">
+                              <span className="text-lg font-bold text-slate-800" style={filterPreviewStyle(preset.id)}>Ab</span>
+                            </div>
+                          </div>
+                          <span className={`text-[10px] font-medium uppercase tracking-wider whitespace-nowrap ${
+                            active ? 'text-teal-600' : 'text-slate-500'
+                          }`}>{preset.label}</span>
                         </button>
                       );
                     })}
@@ -3124,7 +3179,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 </div>
               )}
 
-              {mobileTab === 'markup' && (
+              {mobilePanel === 'markup' && (
                 <div className="flex flex-col gap-3">
                   {/* Contextual Selected Overlay Editor on Mobile */}
                   {selectedAnn && (
@@ -3237,7 +3292,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 </div>
               )}
 
-              {mobileTab === 'watermark' && (
+              {mobilePanel === 'watermark' && (
                 <div className="flex flex-col gap-3">
                   <label className="flex min-h-[44px] items-center justify-between rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-800">
                     <span>Enable Watermark</span>
@@ -3286,43 +3341,232 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   )}
                 </div>
               )}
+
+              {mobilePanel === 'ocr' && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={ocrLang}
+                      onChange={(e) => setOcrLang(e.target.value)}
+                      aria-label="OCR Language"
+                      className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800 focus:border-teal-600 focus:outline-none"
+                    >
+                      <option value="eng">English</option>
+                      <option value="spa">Spanish</option>
+                      <option value="fra">French</option>
+                      <option value="deu">German</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={ocrRunning}
+                      onClick={handleRunOcr}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                    >
+                      <ScanText className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{ocrRunning ? `${ocrProgress}%` : 'Extract Page Text'}</span>
+                    </button>
+                  </div>
+
+                  {ocrRunning && (
+                    <div className="rounded-lg bg-slate-50 p-2.5">
+                      <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+                        <span className="truncate">{ocrStatus}</span>
+                        <span className="font-mono-tabular">{ocrProgress}%</span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div className="h-full bg-teal-600 transition-all" style={{ width: `${ocrProgress}%` }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {ocrError && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+                      {ocrError}
+                    </div>
+                  )}
+
+                  <textarea
+                    rows={5}
+                    value={activePage.ocrText}
+                    onChange={(e) => updateActivePage((p) => ({ ...p, ocrText: e.target.value }))}
+                    placeholder="Recognized text appears here..."
+                    className="w-full rounded-lg border border-slate-200 p-3 text-xs leading-relaxed text-slate-800 focus:border-teal-600 focus:outline-none"
+                  />
+
+                  {activePage.ocrText && (
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await navigator.clipboard.writeText(activePage.ocrText);
+                          setCopiedOcr(true);
+                          window.setTimeout(() => setCopiedOcr(false), 1500);
+                        }}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        {copiedOcr ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'txt')}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>.TXT</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'doc')}
+                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      >
+                        <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>.DOC</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
-          {/* 3-Tab Mobile Edit Dock (NO OCR or Pages in Edit Mode) */}
-          <div className="grid grid-cols-3 h-[58px] px-2">
-            {(
-              [
-                { id: 'enhance', label: 'Enhance', icon: Wand2 },
-                { id: 'markup', label: 'Markup', icon: PenTool },
-                { id: 'watermark', label: 'Watermark', icon: Stamp },
-              ] as const
-            ).map((tab) => {
-              const Icon = tab.icon;
-              const active = mobileTrayOpen && mobileTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    haptics.tap();
-                    if (mobileTrayOpen && mobileTab === tab.id) {
-                      setMobileTrayOpen(false);
-                    } else {
-                      setMobileTab(tab.id);
-                      setMobileTrayOpen(true);
-                      if (tab.id !== 'markup') setDrawTool('none');
+          {/* OLD BITSCAN MOBILE EDIT DOCK — dark bar with icon + uppercase label and green Save check */}
+          <div className="bg-slate-900 border-t border-slate-800 pb-safe">
+            <div className="flex items-center justify-between px-4 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  setRecropQuad(activePage.quad);
+                  setRecropOpen(true);
+                }}
+                className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
+              >
+                <Crop className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Crop</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRotate(90)}
+                className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
+              >
+                <RotateCw className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Rotate</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  if (mobilePanelOpen && mobilePanel === 'enhance') {
+                    setMobilePanelOpen(false);
+                  } else {
+                    setMobilePanel('enhance');
+                    setMobilePanelOpen(true);
+                    setDrawTool('none');
+                  }
+                }}
+                className={`flex flex-col items-center gap-1.5 transition ${
+                  mobilePanelOpen && mobilePanel === 'enhance'
+                    ? 'text-teal-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Wand2 className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Filter</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  if (mobilePanelOpen && mobilePanel === 'markup') {
+                    setMobilePanelOpen(false);
+                  } else {
+                    setMobilePanel('markup');
+                    setMobilePanelOpen(true);
+                    setDrawTool('none');
+                  }
+                }}
+                className={`flex flex-col items-center gap-1.5 transition ${
+                  mobilePanelOpen && mobilePanel === 'markup'
+                    ? 'text-teal-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <PenTool className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Markup</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  if (mobilePanelOpen && mobilePanel === 'watermark') {
+                    setMobilePanelOpen(false);
+                  } else {
+                    setMobilePanel('watermark');
+                    setMobilePanelOpen(true);
+                    setDrawTool('none');
+                  }
+                }}
+                className={`flex flex-col items-center gap-1.5 transition ${
+                  mobilePanelOpen && mobilePanel === 'watermark'
+                    ? 'text-teal-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                data-testid="mobile-dock-watermark"
+              >
+                <Stamp className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">Mark</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  if (mobilePanelOpen && mobilePanel === 'ocr') {
+                    setMobilePanelOpen(false);
+                  } else {
+                    setMobilePanel('ocr');
+                    setMobilePanelOpen(true);
+                    if (!activePage.ocrText && !ocrRunning) {
+                      void handleRunOcr();
                     }
-                  }}
-                  className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-                    active ? 'text-teal-700' : 'text-slate-600'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-semibold tracking-tight">{tab.label}</span>
-                </button>
-              );
-            })}
+                  }
+                }}
+                className={`flex flex-col items-center gap-1.5 transition ${
+                  mobilePanelOpen && mobilePanel === 'ocr'
+                    ? 'text-teal-400'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <ScanText className="h-[22px] w-[22px]" aria-hidden="true" />
+                <span className="text-[10px] font-medium uppercase tracking-wider">OCR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveEdits}
+                data-testid="save-edits-btn"
+                className="flex flex-col items-center gap-1 text-green-500 hover:text-green-400 transition"
+              >
+                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mb-0.5">
+                  <Check className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
+                </div>
+                <span className="text-[10px] font-bold uppercase tracking-wider">Save</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

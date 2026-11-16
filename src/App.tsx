@@ -25,6 +25,7 @@ import {
   type AppSettings,
   type ToolId,
 } from './utils/settingsStore';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { TopBar } from './components/TopBar';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { LibraryView } from './components/LibraryView';
@@ -509,34 +510,36 @@ export default function App() {
           }}
         />
       ) : activeView === 'editor' && activeDocument ? (
-        <DocumentEditor
-          key={`${activeDocument.id}-${editorSessionId}`}
-          document={activeDocument}
-          initialMode={editorInitialMode}
-          initialPageIndex={editorInitialPageIdx}
-          defaultOcrLang={appSettings.defaultOcrLang}
-          isDraftScan={isDraftActive}
-          onDiscardDraft={handleDiscardDraft}
-          savedSignatures={savedSignatures}
-          onSaveNewSignature={handleSaveSignature}
-          onSaveSignatureAsDocument={handleSaveSignatureAsDocument}
-          onDeleteSavedSignature={handleDeleteSignature}
-          onUpdateDocument={handleUpdateDocument}
-          onCommitDocument={handleCommitDocument}
-          onAddPagesToDoc={() =>
-            openScanner({ batch: false, mode: 'docs', appendToDocId: activeDocument.id })
-          }
-          onOpenExport={(pageIndex) => setExportState({ doc: activeDocument, pageIndex })}
-          onBackToProject={() => {
-            setReturnToProjectOnCommit(false);
-            setActiveView('project');
-          }}
-          onBackToLibrary={() => {
-            setDraftDocument(null);
-            setActiveView('library');
-            setActiveDocId(null);
-          }}
-        />
+        <ErrorBoundary>
+          <DocumentEditor
+            key={`${activeDocument.id}-${editorSessionId}`}
+            document={activeDocument}
+            initialMode={editorInitialMode}
+            initialPageIndex={editorInitialPageIdx}
+            defaultOcrLang={appSettings.defaultOcrLang}
+            isDraftScan={isDraftActive}
+            onDiscardDraft={handleDiscardDraft}
+            savedSignatures={savedSignatures}
+            onSaveNewSignature={handleSaveSignature}
+            onSaveSignatureAsDocument={handleSaveSignatureAsDocument}
+            onDeleteSavedSignature={handleDeleteSignature}
+            onUpdateDocument={handleUpdateDocument}
+            onCommitDocument={handleCommitDocument}
+            onAddPagesToDoc={() =>
+              openScanner({ batch: false, mode: 'docs', appendToDocId: activeDocument.id })
+            }
+            onOpenExport={(pageIndex) => setExportState({ doc: activeDocument, pageIndex })}
+            onBackToProject={() => {
+              setReturnToProjectOnCommit(false);
+              setActiveView('project');
+            }}
+            onBackToLibrary={() => {
+              setDraftDocument(null);
+              setActiveView('library');
+              setActiveDocId(null);
+            }}
+          />
+        </ErrorBoundary>
       ) : activeView === 'tools' ? (
         <ToolsView
           key={`tools-${toolsInitialId || 'hub'}`}
