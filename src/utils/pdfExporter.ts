@@ -339,6 +339,7 @@ export async function exportDocumentAsWord(
     payloads.push({
       pageNumber: pageIdx + 1,
       ocrText: page.ocrText,
+      ocrBlocks: page.ocrBlocks,
       imageDataUrl,
     });
   }
@@ -352,12 +353,13 @@ export async function exportDocumentAsWord(
 }
 
 /**
- * Exports extracted OCR text as a plain .txt or Word-compatible .doc file.
+ * Exports extracted OCR text (and structured tables) as a plain .txt or Word-compatible .doc file.
  */
 export function exportOcrTextFile(
   title: string,
   text: string,
-  format: 'txt' | 'doc'
+  format: 'txt' | 'doc',
+  ocrBlocks?: ScannedPage['ocrBlocks']
 ): void {
   const safeName = sanitizeExportFilename(title, 'extracted-text');
   let blob: Blob;
@@ -365,7 +367,7 @@ export function exportOcrTextFile(
   if (format === 'doc') {
     const html = buildWordExportHtml(
       safeName,
-      [{ pageNumber: 1, ocrText: text }],
+      [{ pageNumber: 1, ocrText: text, ocrBlocks }],
       { includeImages: false, includeOcrText: true }
     );
     blob = new Blob([html], { type: 'application/msword;charset=utf-8' });

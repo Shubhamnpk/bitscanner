@@ -1,4 +1,5 @@
 import type { ExportFormat, PdfQuality, ScannedPage } from '../types/scanner';
+import { parseOcrDocumentLayout, type OcrStructuredBlock } from './ocrLayoutParser';
 
 /**
  * Validates and resolves selected 0-based page indices into ordered unique page selections.
@@ -70,12 +71,62 @@ function escapeHtml(raw: string): string {
 export interface WordPagePayload {
   pageNumber: number;
   ocrText: string;
+  ocrBlocks?: OcrStructuredBlock[];
   imageDataUrl?: string;
+}
+
+function renderStructuredBlocksHtml(blocks: OcrStructuredBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.kind === 'heading') {
+        const align = block.align === 'center' ? 'text-align: center;' : '';
+        return `<h4 style="${align} font-size: 13pt; font-weight: bold; color: #0f172a; margin: 12px 0 6px;">${escapeHtml(block.text)}</h4>`;
+      }
+      if (block.kind === 'key_value') {
+        const rows = block.pairs
+          .map(
+            (p) =>
+              `<tr><td style="padding: 3px 10px 3px 0; font-weight: bold; color: #334155; font-size: 10.5pt;">${escapeHtml(p.key)}:</td><td style="padding: 3px 0; color: #0f172a; font-size: 10.5pt;">${escapeHtml(p.value)}</td></tr>`
+          )
+          .join('');
+        return `<table style="border-collapse: collapse; margin: 8px 0;">${rows}</table>`;
+      }
+      if (block.kind === 'table') {
+        const thead = block.headers
+          ? `<thead><tr>${block.headers
+              .map((h, i) => {
+                const align = block.alignments?.[i] === 'right' ? 'text-align: right;' : 'text-align: left;';
+                return `<th style="${align} border: 1px solid #cbd5e1; background: #f1f5f9; padding: 6px 8px; font-size: 10pt; font-weight: bold; color: #0f172a;">${escapeHtml(h)}</th>`;
+              })
+              .join('')}</tr></thead>`
+          : '';
+        const tbody = `<tbody>${block.rows
+          .map(
+            (row) =>
+              `<tr>${row
+                .map((cell, i) => {
+                  const align = block.alignments?.[i] === 'right' ? 'text-align: right;' : 'text-align: left;';
+                  return `<td style="${align} border: 1px solid #cbd5e1; padding: 6px 8px; font-size: 10pt; color: #1e293b;">${escapeHtml(cell)}</td>`;
+                })
+                .join('')}</tr>`
+          )
+          .join('')}</tbody>`;
+        return `<table style="width: 100%; border-collapse: collapse; margin: 10px 0;">${thead}${tbody}</table>`;
+      }
+      if (block.kind === 'list') {
+        const items = block.items
+          .map((it) => `<li style="margin: 2px 0;">${escapeHtml(it)}</li>`)
+          .join('');
+        return `<ul style="margin: 6px 0 8px 20px; padding: 0; font-size: 10.5pt; color: #1e293b;">${items}</ul>`;
+      }
+      return `<p style="margin: 6px 0; font-size: 10.5pt; line-height: 1.55; color: #1e293b;">${escapeHtml(block.text)}</p>`;
+    })
+    .join('\n');
 }
 
 /**
  * Generates a clean Word-compatible (.doc HTML) document combining selected pages,
- * embedded high-contrast scan images, and/or recognized OCR text paragraphs.
+ * embedded high-contrast scan images, and/or structured OCR layout & tables.
  */
 export function buildWordExportHtml(
   docTitle: string,
@@ -91,10 +142,16 @@ export function buildWordExportHtml(
           ? `<div style="margin: 12px 0;"><img src="${p.imageDataUrl}" alt="Page ${p.pageNumber}" style="max-width: 100%; height: auto; border: 1px solid #e2e8f0;" /></div>`
           : '';
       const rawText = (p.ocrText || '').trim();
+      const blocks = rawText ? parseOcrDocumentLayout(rawText, p.ocrBlocks) : [];
+      const hasRichLayout = blocks.some(
+        (b) => b.kind === 'table' || b.kind === 'key_value' || b.kind === 'list'
+      );
       const textBlock = options.includeOcrText
-        ? rawText
-          ? `<div style="margin-top: 10px; font-size: 11pt; line-height: 1.6; color: #1e293b;">${escapeHtml(rawText).replace(/\n/g, '<br/>')}</div>`
-          : `<p style="color: #64748b; font-style: italic; font-size: 10pt;">No OCR text extracted for Page ${p.pageNumber}.</p>`
+        ? hasRichLayout
+          ? `<div style="margin-top: 10px;">${renderStructuredBlocksHtml(blocks)}</div>`
+          : rawText
+            ? `<div style="margin-top: 10px; font-size: 11pt; line-height: 1.6; color: #1e293b;">${escapeHtml(rawText).replace(/\n/g, '<br/>')}</div>`
+            : `<p style="color: #64748b; font-style: italic; font-size: 10pt;">No OCR text extracted for Page ${p.pageNumber}.</p>`
         : '';
 
       return `<section style="${breakStyle} margin-bottom: 24px;">

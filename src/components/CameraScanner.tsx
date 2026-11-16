@@ -128,6 +128,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const requestSeqRef = useRef(0);
   const scratchCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [activeStream, setActiveStream] = useState<MediaStream | null>(null);
+  const [preferDemoLens, setPreferDemoLens] = useState<boolean>(initialSource === 'samples');
   const [cameraStatus, setCameraStatus] = useState<'requesting' | 'active' | 'blocked' | 'demo'>('requesting');
   const [cameraErrorMsg, setCameraErrorMsg] = useState<string | null>(null);
   const [demoSceneIdx, setDemoSceneIdx] = useState(0);
@@ -140,9 +141,16 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
   // Captured queue & crop review state
   const [queue, setQueue] = useState<QueuedCapture[]>([]);
+  const queueRef = useRef<QueuedCapture[]>([]);
   const [selectedQueueIdx, setSelectedQueueIdx] = useState(0);
+  const [retakeTargetIdx, setRetakeTargetIdx] = useState<number | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  const commitQueue = useCallback((next: QueuedCapture[]) => {
+    queueRef.current = next;
+    setQueue(next);
+  }, []);
 
   const stopCamera = useCallback(() => {
     requestSeqRef.current += 1;
@@ -261,9 +269,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     if (isOpen) {
       setScanMode(initialMode === 'id_card' || initialMode === 'book' ? initialMode : 'docs');
       setIsMultiMode(initialMode === 'batch');
+      setPreferDemoLens(initialSource === 'samples');
       setStage(initialFiles && initialFiles.length > 0 ? 'crop_review' : 'viewfinder');
-      setQueue([]);
+      commitQueue([]);
       setSelectedQueueIdx(0);
+      setRetakeTargetIdx(null);
       setZoomLevel(1.0);
       pointersRef.current.clear();
       pinchStartRef.current = null;
@@ -293,7 +303,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               });
             }
             if (!cancelled && added.length > 0) {
-              setQueue(added);
+              commitQueue(added);
               setSelectedQueueIdx(added.length - 1);
               setStage('crop_review');
             }
@@ -307,22 +317,23 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       }
     } else {
       stopCamera();
-      setQueue([]);
+      commitQueue([]);
+      setPreferDemoLens(initialSource === 'samples');
       setLiveQuad(null);
       setEdgeLocked(false);
       lastRawQuadRef.current = null;
       stableFramesRef.current = 0;
     }
-  }, [isOpen, initialMode, initialSource, initialFiles, stopCamera]);
+  }, [isOpen, initialMode, initialSource, initialFiles, stopCamera, commitQueue]);
 
-  // Acquire live camera stream whenever viewfinder is active (unless launched specifically in samples demo mode)
+  // Acquire live camera stream whenever viewfinder is active (unless launched or switched to Demo Lens)
   useEffect(() => {
     if (!isOpen || stage !== 'viewfinder' || (initialFiles && initialFiles.length > 0)) {
       stopCamera();
       return;
     }
 
-    if (initialSource === 'samples') {
+    if (initialSource === 'samples' || preferDemoLens) {
       stopCamera();
       setCameraStatus('demo');
       return;
@@ -333,7 +344,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     return () => {
       stopCamera();
     };
-  }, [isOpen, stage, facingMode, initialSource, initialFiles, requestCameraStream, stopCamera]);
+  }, [isOpen, stage, facingMode, initialSource, preferDemoLens, initialFiles, requestCameraStream, stopCamera]);
 
   // Ensure always-mounted <video> attaches activeStream as soon as ready
   useEffect(() => {
@@ -510,20 +521,29 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         quad: detectedQuad,
       };
 
-      setQueue((prev) => {
-        const next = [...prev, item];
-        setSelectedQueueIdx(next.length - 1);
+      const prev = queueRef.current;
+      const targetReplace = retakeTargetIdx;
 
-        // Determine if we auto-advance straight to crop verification
-        if (scanMode === 'id_card') {
-          if (next.length >= 2) {
-            setStage('crop_review');
-          }
-        } else if (!stayInCameraIfMulti) {
+      if (targetReplace !== null && targetReplace >= 0 && targetReplace < prev.length) {
+        const next = prev.map((existing, idx) => (idx === targetReplace ? item : existing));
+        commitQueue(next);
+        setSelectedQueueIdx(targetReplace);
+        setRetakeTargetIdx(null);
+        setStage('crop_review');
+        return;
+      }
+
+      const next = [...prev, item];
+      commitQueue(next);
+      setSelectedQueueIdx(next.length - 1);
+
+      if (scanMode === 'id_card') {
+        if (next.length >= 2) {
           setStage('crop_review');
         }
-        return next;
-      });
+      } else if (!stayInCameraIfMulti) {
+        setStage('crop_review');
+      }
     } finally {
       setDetecting(false);
     }
@@ -533,6 +553,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     if (!cameraActive && cameraStatus !== 'demo') {
       // If camera is not active yet, request camera access directly on click
       haptics.tap();
+      setPreferDemoLens(false);
       requestCameraStream(facingMode);
       return;
     }
@@ -604,16 +625,44 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       }
 
       if (added.length === 0) return;
-      setQueue((prev) => {
-        const next = [...prev, ...added];
-        setSelectedQueueIdx(next.length - 1);
-        if (!keepShooting && (scanMode !== 'id_card' || next.length >= 2)) {
-          setStage('crop_review');
-        }
-        return next;
-      });
+      const prev = queueRef.current;
+      const targetReplace = retakeTargetIdx;
+
+      if (
+        added.length === 1 &&
+        targetReplace !== null &&
+        targetReplace >= 0 &&
+        targetReplace < prev.length
+      ) {
+        const next = prev.map((existing, idx) => (idx === targetReplace ? added[0] : existing));
+        commitQueue(next);
+        setSelectedQueueIdx(targetReplace);
+        setRetakeTargetIdx(null);
+        setStage('crop_review');
+        return;
+      }
+
+      const next = [...prev, ...added];
+      commitQueue(next);
+      setSelectedQueueIdx(next.length - 1);
+      if (!keepShooting && (scanMode !== 'id_card' || next.length >= 2)) {
+        setStage('crop_review');
+      }
     } finally {
       setDetecting(false);
+    }
+  };
+
+  const handleRemoveQueueItem = (idx: number) => {
+    haptics.warning();
+    const filtered = queueRef.current.filter((_, i) => i !== idx);
+    commitQueue(filtered);
+    if (filtered.length === 0) {
+      setRetakeTargetIdx(null);
+      setSelectedQueueIdx(0);
+      setStage('viewfinder');
+    } else {
+      setSelectedQueueIdx((cur) => Math.max(0, Math.min(cur, filtered.length - 1)));
     }
   };
 
@@ -625,9 +674,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     setDetecting(true);
     try {
       const nextQuad = await detectCornersFromDataUrl(activeItem.originalDataUrl);
-      setQueue((prev) =>
-        prev.map((item, i) => (i === selectedQueueIdx ? { ...item, quad: nextQuad } : item))
+      const next = queueRef.current.map((item, i) =>
+        i === selectedQueueIdx ? { ...item, quad: nextQuad } : item
       );
+      commitQueue(next);
     } finally {
       setDetecting(false);
     }
@@ -647,11 +697,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
     const rotatedUrl = c.toDataURL('image/jpeg', 0.92);
     const nextQuad = await detectCornersFromDataUrl(rotatedUrl);
-    setQueue((prev) =>
-      prev.map((item, i) =>
-        i === selectedQueueIdx ? { ...item, originalDataUrl: rotatedUrl, quad: nextQuad } : item
-      )
+    const next = queueRef.current.map((item, i) =>
+      i === selectedQueueIdx ? { ...item, originalDataUrl: rotatedUrl, quad: nextQuad } : item
     );
+    commitQueue(next);
   };
 
   const handleProcessAndShowResult = async () => {
@@ -748,7 +797,12 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 type="button"
                 onClick={() => {
                   haptics.tap();
-                  onClose();
+                  if (retakeTargetIdx !== null && queue.length > 0) {
+                    setRetakeTargetIdx(null);
+                    setStage('crop_review');
+                  } else {
+                    onClose();
+                  }
                 }}
                 aria-label="Close camera"
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 active:scale-95 transition-transform cursor-pointer"
@@ -756,16 +810,22 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
 
-              <span className="hidden sm:inline-block rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white/90">
-                {scanMode === 'id_card'
-                  ? queue.length === 0
-                    ? 'ID Card · Frame Front'
-                    : 'ID Card · Frame Back'
-                  : scanMode === 'book'
-                    ? 'Book Spread · Auto-Split'
-                    : isMultiMode
-                      ? 'Batch Multi-Page'
-                      : 'Smart Document Auto-Crop'}
+              <span
+                className={`${
+                  retakeTargetIdx !== null ? 'inline-block' : 'hidden sm:inline-block'
+                } rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white/90`}
+              >
+                {retakeTargetIdx !== null
+                  ? `Retaking Page ${retakeTargetIdx + 1}`
+                  : scanMode === 'id_card'
+                    ? queue.length === 0
+                      ? 'ID Card · Frame Front'
+                      : 'ID Card · Frame Back'
+                    : scanMode === 'book'
+                      ? 'Book Spread · Auto-Split'
+                      : isMultiMode
+                        ? 'Batch Multi-Page'
+                        : 'Smart Document Auto-Crop'}
               </span>
             </div>
 
@@ -866,6 +926,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     onClick={() => {
                       haptics.tap();
                       setOptionsOpen(false);
+                      setPreferDemoLens(false);
                       requestCameraStream(facingMode);
                     }}
                     className="flex min-h-[40px] w-full items-center justify-between rounded-xl px-3 text-xs font-medium text-teal-300 hover:bg-white/10 cursor-pointer"
@@ -879,6 +940,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     onClick={() => {
                       haptics.tap();
                       stopCamera();
+                      setPreferDemoLens(true);
                       setCameraStatus('demo');
                       setOptionsOpen(false);
                     }}
@@ -967,6 +1029,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                       type="button"
                       onClick={() => {
                         haptics.tap();
+                        setPreferDemoLens(false);
                         requestCameraStream(facingMode);
                       }}
                       className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 px-4 text-sm font-bold text-slate-950 active:scale-[0.98] cursor-pointer"
@@ -992,6 +1055,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                       type="button"
                       onClick={() => {
                         haptics.tap();
+                        setPreferDemoLens(true);
                         setCameraStatus('demo');
                       }}
                       className="flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-white/70 hover:text-white cursor-pointer"
@@ -1223,116 +1287,108 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           </footer>
         </>
       ) : (
-        /* STAGE B: Focused Crop Verification -> Auto-Enhanced Result (No title/color/folder prompt!) */
-        <div className="flex h-full flex-col bg-slate-950 text-white">
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 px-3 sm:px-5">
+        /* STAGE B: Redesigned Cohesive Light-Theme Crop Verification */
+        <div
+          data-testid="crop-review-stage"
+          className="flex h-full flex-col bg-slate-100 text-slate-900"
+        >
+          {/* Clean Header */}
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-5">
             <button
               type="button"
               onClick={() => {
                 haptics.tap();
-                if (queue.length <= 1 && !isMultiMode) {
-                  setQueue([]);
-                }
-                setStage('viewfinder');
+                onClose();
               }}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-xs sm:text-sm font-medium text-slate-200 hover:bg-slate-800 cursor-pointer"
+              aria-label="Cancel scan"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
-              <Camera className="h-4 w-4" aria-hidden="true" />
-              <span>Retake</span>
+              <X className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Cancel</span>
             </button>
 
-            <span className="text-sm font-bold tracking-tight">
-              {scanMode === 'id_card'
-                ? selectedQueueIdx === 0
-                  ? 'Verify Front Crop'
-                  : 'Verify Back Crop'
-                : queue.length > 1
-                  ? `Verify Crop (${selectedQueueIdx + 1}/${queue.length})`
-                  : 'Verify Auto-Crop'}
-            </span>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={handleRotateSource90}
-                aria-label="Rotate source 90 degrees"
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-200 hover:bg-slate-800 cursor-pointer"
-              >
-                <RotateCw className="h-4 w-4" aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Cancel scan"
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-800 cursor-pointer"
-              >
-                <X className="h-5 w-5" aria-hidden="true" />
-              </button>
+            <div className="text-center">
+              <span className="text-sm font-bold tracking-tight text-slate-900">
+                {scanMode === 'id_card'
+                  ? selectedQueueIdx === 0
+                    ? 'Verify Front Crop'
+                    : 'Verify Back Crop'
+                  : queue.length > 1
+                    ? `Verify Page ${selectedQueueIdx + 1} of ${queue.length}`
+                    : 'Verify Auto-Crop'}
+              </span>
             </div>
+
+            {scanMode !== 'id_card' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  setRetakeTargetIdx(null);
+                  setIsMultiMode(true);
+                  setStage('viewfinder');
+                }}
+                className="inline-flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+              >
+                <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Add Page</span>
+              </button>
+            ) : (
+              <div className="w-10 sm:w-16" aria-hidden="true" />
+            )}
           </header>
 
-          {/* Optional multi-page thumbnail strip when queuing >1 pages */}
+          {/* Clean Multi-Page Switcher Strip (Non-overlapping thumbs) */}
           {queue.length > 1 && (
-            <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-800 bg-slate-900/70 px-4 py-2.5">
-              {queue.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className={`relative flex shrink-0 items-center gap-2 rounded-xl border p-1.5 pr-7 ${
-                    idx === selectedQueueIdx
-                      ? 'border-teal-500 bg-teal-950/60'
-                      : 'border-slate-700 bg-slate-900'
-                  }`}
-                >
+            <div className="flex shrink-0 items-center justify-center gap-2 overflow-x-auto border-b border-slate-200 bg-white/90 px-4 py-2">
+              {queue.map((item, idx) => {
+                const active = idx === selectedQueueIdx;
+                return (
                   <button
+                    key={item.id}
                     type="button"
                     onClick={() => {
                       haptics.tap();
                       setSelectedQueueIdx(idx);
                     }}
-                    className="flex items-center gap-2 text-left cursor-pointer"
+                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all cursor-pointer ${
+                      active
+                        ? 'border-teal-600 bg-teal-50 ring-2 ring-teal-500/20'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
                   >
                     <img
                       src={item.originalDataUrl}
                       alt={`Captured page ${idx + 1}`}
-                      className="h-9 w-9 rounded-lg object-cover"
+                      className="h-8 w-8 rounded-lg object-cover border border-slate-200"
                     />
-                    <span className="text-xs font-semibold text-slate-100">
+                    <span
+                      className={`text-xs font-bold ${
+                        active ? 'text-teal-900' : 'text-slate-700'
+                      }`}
+                    >
                       {scanMode === 'id_card' ? (idx === 0 ? 'Front' : 'Back') : `P${idx + 1}`}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    aria-label={`Remove page ${idx + 1}`}
-                    onClick={() => {
-                      haptics.warning();
-                      setQueue((prev) => {
-                        const filtered = prev.filter((_, i) => i !== idx);
-                        if (filtered.length === 0) setStage('viewfinder');
-                        return filtered;
-                      });
-                      setSelectedQueueIdx((p) => Math.max(0, p - 1));
-                    }}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-red-400 cursor-pointer"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
-          {/* Perspective Corner Verification Stage */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6">
+          {/* Perspective Corner Verification Canvas */}
+          <div className="flex flex-1 min-h-0 items-center justify-center overflow-y-auto p-3 sm:p-6">
             {activeItem && (
-              <div className="mx-auto max-w-3xl">
+              <div className="mx-auto w-full max-w-3xl">
                 <PerspectiveCropCanvas
+                  hideTopActions
                   imageSrc={activeItem.originalDataUrl}
                   quad={activeItem.quad}
-                  onChange={(nextQuad) =>
-                    setQueue((prev) =>
-                      prev.map((item, i) => (i === selectedQueueIdx ? { ...item, quad: nextQuad } : item))
-                    )
-                  }
+                  onChange={(nextQuad) => {
+                    const next = queueRef.current.map((item, i) =>
+                      i === selectedQueueIdx ? { ...item, quad: nextQuad } : item
+                    );
+                    commitQueue(next);
+                  }}
                   onAutoDetect={handleAutoDetectCurrent}
                   detecting={detecting}
                 />
@@ -1340,47 +1396,109 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
             )}
           </div>
 
-          {/* Direct Result Action Footer — No extra forms! */}
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-slate-800 bg-slate-950 px-4 py-3 pb-safe">
-            <button
-              type="button"
-              onClick={() => {
-                haptics.tap();
-                if (!activeItem) return;
-                const full: QuadCorners = [
-                  { x: 0.01, y: 0.01 },
-                  { x: 0.99, y: 0.01 },
-                  { x: 0.99, y: 0.99 },
-                  { x: 0.01, y: 0.99 },
-                ];
-                setQueue((prev) =>
-                  prev.map((item, i) => (i === selectedQueueIdx ? { ...item, quad: full } : item))
-                );
-              }}
-              className="inline-flex min-h-[46px] items-center gap-1.5 rounded-2xl border border-slate-700 bg-slate-900 px-4 text-xs sm:text-sm font-medium text-slate-200 hover:bg-slate-800 cursor-pointer"
-            >
-              <Maximize2 className="h-4 w-4 text-slate-400" aria-hidden="true" />
-              <span>No Crop</span>
-            </button>
+          {/* Unified Action Toolbar + Safe Bottom Primary Footer */}
+          <footer className="shrink-0 border-t border-slate-200 bg-white px-4 pt-2.5 pb-[max(1.15rem,env(safe-area-inset-bottom))] sm:pb-5 shadow-[0_-6px_24px_-12px_rgba(15,23,42,0.1)]">
+            <div className="mx-auto flex max-w-2xl flex-col gap-3">
+              {/* Tool Strip: Per-page Retake, Auto-Detect, Full Frame, Rotate 90°, Delete */}
+              <div className="grid grid-cols-5 gap-1.5">
+                <button
+                  type="button"
+                  data-testid="crop-retake-btn"
+                  onClick={() => {
+                    haptics.tap();
+                    if (queue.length <= 1) {
+                      commitQueue([]);
+                      setRetakeTargetIdx(null);
+                    } else {
+                      setRetakeTargetIdx(selectedQueueIdx);
+                    }
+                    setStage('viewfinder');
+                  }}
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                >
+                  <Camera className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                  <span className="truncate max-w-full">
+                    {queue.length > 1
+                      ? `Retake P${selectedQueueIdx + 1}`
+                      : 'Retake'}
+                  </span>
+                </button>
 
-            <button
-              type="button"
-              disabled={queue.length === 0 || processing}
-              onClick={handleProcessAndShowResult}
-              data-testid="apply-crop-result-btn"
-              className="inline-flex min-h-[48px] flex-1 sm:flex-initial items-center justify-center gap-2 rounded-2xl bg-teal-500 px-6 text-sm font-bold text-slate-950 shadow-lg shadow-teal-500/20 hover:bg-teal-400 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Check className="h-4 w-4" aria-hidden="true" />
-              <span>
-                {processing
-                  ? 'Enhancing Scan...'
-                  : scanMode === 'id_card'
-                    ? 'Make 2-Up ID Sheet'
-                    : queue.length > 1
-                      ? `Process ${queue.length} Pages`
-                      : 'View Result'}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  data-testid="crop-auto-detect-btn"
+                  disabled={detecting}
+                  onClick={handleAutoDetectCurrent}
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50 active:scale-95 transition cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                  <span>{detecting ? 'Scan...' : 'Auto'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="crop-full-frame-btn"
+                  onClick={() => {
+                    haptics.tap();
+                    if (!activeItem) return;
+                    const full: QuadCorners = [
+                      { x: 0.01, y: 0.01 },
+                      { x: 0.99, y: 0.01 },
+                      { x: 0.99, y: 0.99 },
+                      { x: 0.01, y: 0.99 },
+                    ];
+                    const next = queueRef.current.map((item, i) =>
+                      i === selectedQueueIdx ? { ...item, quad: full } : item
+                    );
+                    commitQueue(next);
+                  }}
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                >
+                  <Maximize2 className="h-4 w-4 text-slate-600" aria-hidden="true" />
+                  <span>Full</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="crop-rotate-btn"
+                  onClick={handleRotateSource90}
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                >
+                  <RotateCw className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                  <span>Rotate</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="crop-delete-btn"
+                  onClick={() => handleRemoveQueueItem(selectedQueueIdx)}
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-red-200/80 bg-red-50/60 px-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4 text-red-600" aria-hidden="true" />
+                  <span>Delete</span>
+                </button>
+              </div>
+
+              {/* Prominent Primary CTA with comfortable breathing room */}
+              <button
+                type="button"
+                disabled={queue.length === 0 || processing}
+                onClick={handleProcessAndShowResult}
+                data-testid="apply-crop-result-btn"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-6 text-sm font-bold text-white shadow-md shadow-teal-600/20 hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+              >
+                <Check className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {processing
+                    ? 'Enhancing Scan...'
+                    : scanMode === 'id_card'
+                      ? 'Make 2-Up ID Sheet'
+                      : queue.length > 1
+                        ? `Process ${queue.length} Pages`
+                        : 'View Result'}
+                </span>
+              </button>
+            </div>
           </footer>
         </div>
       )}

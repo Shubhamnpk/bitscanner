@@ -491,6 +491,54 @@ export function drawAnnotationsAndWatermark(
           item.height * height
         );
       }
+    } else if (item.type === 'shape') {
+      const sx = item.x * width;
+      const sy = item.y * height;
+      const sw = item.width * width;
+      const sh = item.height * height;
+      const strokePx = Math.max(2, (item.strokeWidth || 0.006) * Math.min(width, height));
+      ctx.globalAlpha = item.opacity ?? 1;
+      ctx.strokeStyle = item.color || '#0f766e';
+      ctx.lineWidth = strokePx;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const kind = item.shapeKind || 'rect';
+      if (kind === 'rect') {
+        if (item.fillColor && item.fillColor !== 'transparent') {
+          ctx.fillStyle = item.fillColor;
+          ctx.fillRect(sx, sy, sw, sh);
+        }
+        ctx.strokeRect(sx, sy, sw, sh);
+      } else if (kind === 'circle') {
+        ctx.beginPath();
+        ctx.ellipse(sx + sw / 2, sy + sh / 2, Math.max(2, sw / 2), Math.max(2, sh / 2), 0, 0, Math.PI * 2);
+        if (item.fillColor && item.fillColor !== 'transparent') {
+          ctx.fillStyle = item.fillColor;
+          ctx.fill();
+        }
+        ctx.stroke();
+      } else if (kind === 'line') {
+        ctx.beginPath();
+        ctx.moveTo(sx, sy + sh / 2);
+        ctx.lineTo(sx + sw, sy + sh / 2);
+        ctx.stroke();
+      } else if (kind === 'arrow') {
+        const yMid = sy + sh / 2;
+        const head = Math.min(sw * 0.35, Math.max(10, sh * 0.45));
+        ctx.beginPath();
+        ctx.moveTo(sx, yMid);
+        ctx.lineTo(sx + sw - strokePx, yMid);
+        ctx.moveTo(sx + sw - head, yMid - head * 0.65);
+        ctx.lineTo(sx + sw, yMid);
+        ctx.lineTo(sx + sw - head, yMid + head * 0.65);
+        ctx.stroke();
+      } else if (kind === 'check') {
+        ctx.beginPath();
+        ctx.moveTo(sx + sw * 0.14, sy + sh * 0.54);
+        ctx.lineTo(sx + sw * 0.4, sy + sh * 0.82);
+        ctx.lineTo(sx + sw * 0.86, sy + sh * 0.2);
+        ctx.stroke();
+      }
     } else if (item.type === 'stroke' && item.points && item.points.length > 1) {
       ctx.strokeStyle = item.color || '#facc15';
       ctx.globalAlpha = item.opacity ?? 0.42;

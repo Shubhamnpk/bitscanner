@@ -1,3 +1,5 @@
+import type { OcrStructuredBlock } from '../utils/ocrLayoutParser';
+
 export interface Point2D {
   x: number;
   y: number;
@@ -23,7 +25,8 @@ export interface ImageAdjustments {
   shadowRemoval: number; // 0 to 100
 }
 
-export type AnnotationType = 'signature' | 'redaction' | 'text' | 'stroke';
+export type AnnotationType = 'signature' | 'redaction' | 'text' | 'stroke' | 'shape';
+export type ShapeKind = 'rect' | 'circle' | 'arrow' | 'line' | 'check';
 
 export interface AnnotationItem {
   id: string;
@@ -39,6 +42,9 @@ export interface AnnotationItem {
   text?: string;
   color?: string;
   fontSize?: number; // normalized fraction of page height (e.g. 0.025)
+  /** For geometric shape annotations */
+  shapeKind?: ShapeKind;
+  fillColor?: string;
   /** For freehand stroke / highlighter */
   points?: Point2D[];
   strokeWidth?: number; // normalized fraction of page width
@@ -75,6 +81,7 @@ export interface ScannedPage {
   thumbnailDataUrl?: string;
   ocrText: string;
   ocrConfidence?: number;
+  ocrBlocks?: OcrStructuredBlock[];
   width: number;
   height: number;
   createdAt: number;

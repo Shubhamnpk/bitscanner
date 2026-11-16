@@ -1,4 +1,4 @@
-import { createWorker, PSM, type Worker } from 'tesseract.js';
+import { createWorker, PSM, type Block, type Worker } from 'tesseract.js';
 import { loadImage } from './imageProcessor';
 import {
   binarizeOcrAdaptive,
@@ -13,16 +13,45 @@ import {
   type OcrSearchResult,
   type OcrStructuredEntities,
 } from './ocrHelpers';
+import {
+  parseOcrBlocksFromGeometry,
+  parseOcrDocumentLayout,
+  type OcrLineBox,
+  type OcrStructuredBlock,
+} from './ocrLayoutParser';
 
-export type { OcrLayoutMode, OcrSearchResult, OcrStructuredEntities };
-export { countOcrWords, extractStructuredOcrEntities, searchOcrTextMatches };
+export type { OcrLayoutMode, OcrSearchResult, OcrStructuredBlock, OcrStructuredEntities };
+export { countOcrWords, extractStructuredOcrEntities, parseOcrDocumentLayout, searchOcrTextMatches };
 
 export interface OcrResult {
   text: string;
   confidence: number;
   wordCount: number;
   entities: OcrStructuredEntities;
+  blocks: OcrStructuredBlock[];
   skewCorrectedDeg?: number;
+}
+
+function extractLineBoxesFromTesseractBlocks(blocks: Block[] | null | undefined): OcrLineBox[] {
+  if (!blocks || blocks.length === 0) return [];
+  const lines: OcrLineBox[] = [];
+  for (const block of blocks) {
+    for (const para of block.paragraphs || []) {
+      for (const line of para.lines || []) {
+        const cleaned = cleanOcrText(line.text || '');
+        if (!cleaned) continue;
+        lines.push({
+          text: cleaned,
+          bbox: line.bbox,
+          words: (line.words || []).map((w) => ({
+            text: w.text,
+            bbox: w.bbox,
+          })),
+        });
+      }
+    }
+  }
+  return lines;
 }
 
 const PSM_BY_LAYOUT: Record<OcrLayoutMode, PSM> = {
@@ -168,6 +197,7 @@ async function prepareImageForOcr(imageDataUrl: string): Promise<{
  * - Automatic subtle skew detection & deskew rotation (+/- 5 deg)
  * - 300 DPI normalization & shadow-removing contrast enhancement + dust speck filtering
  * - Dual-pass adaptive binarization fallback when initial confidence is low (< 52%)
+ * - Geometric table / key-value / heading structure reconstruction
  * - Entity extraction & cached WebAssembly worker reuse
  */
 export async function runFreeOcr(
@@ -190,14 +220,15 @@ export async function runFreeOcr(
       user_defined_dpi: '300',
     });
 
-    const primaryRes = await worker.recognize(primaryUrl);
+    const primaryRes = await worker.recognize(primaryUrl, {}, { text: true, blocks: true });
     let bestText = cleanOcrText(primaryRes.data.text || '');
     let bestConf = Math.round(primaryRes.data.confidence || 0);
+    let bestLineBoxes = extractLineBoxesFromTesseractBlocks(primaryRes.data.blocks);
 
     // If low confidence or empty text on challenging stained/faded paper, retry with adaptive binarization
     if ((bestConf < 52 || countOcrWords(bestText) === 0) && adaptiveUrl !== primaryUrl) {
       onProgress?.(82, 'Running adaptive threshold recovery pass...');
-      const altRes = await worker.recognize(adaptiveUrl);
+      const altRes = await worker.recognize(adaptiveUrl, {}, { text: true, blocks: true });
       const altText = cleanOcrText(altRes.data.text || '');
       const altConf = Math.round(altRes.data.confidence || 0);
 
@@ -206,9 +237,11 @@ export async function runFreeOcr(
       if (altScore > primaryScore) {
         bestText = altText;
         bestConf = altConf;
+        bestLineBoxes = extractLineBoxesFromTesseractBlocks(altRes.data.blocks);
       }
     }
 
+    const blocks = parseOcrBlocksFromGeometry(bestLineBoxes, bestText);
     const entities = extractStructuredOcrEntities(bestText);
     onProgress?.(100, 'Completed');
     progressSink = null;
@@ -218,6 +251,7 @@ export async function runFreeOcr(
       confidence: bestConf,
       wordCount: countOcrWords(bestText),
       entities,
+      blocks,
       skewCorrectedDeg,
     };
   });

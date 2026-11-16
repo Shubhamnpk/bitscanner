@@ -10,6 +10,7 @@ interface PerspectiveCropCanvasProps {
   onChange: (nextQuad: QuadCorners) => void;
   onAutoDetect?: () => void;
   detecting?: boolean;
+  hideTopActions?: boolean;
 }
 
 const CORNER_LABELS = ['Top-left corner', 'Top-right corner', 'Bottom-right corner', 'Bottom-left corner'];
@@ -21,13 +22,13 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
   onChange,
   onAutoDetect,
   detecting = false,
+  hideTopActions = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const loupeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const haptics = useHaptics();
 
-  const [imgSize, setImgSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [activeEdgeIdx, setActiveEdgeIdx] = useState<number | null>(null);
   const edgeDragStartRef = useRef<{
@@ -41,7 +42,6 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       imgRef.current = img;
-      setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
     };
     img.src = imageSrc;
   }, [imageSrc]);
@@ -54,7 +54,7 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
     const ctx = loupeCanvasRef.current.getContext('2d');
     if (!ctx) return;
     const img = imgRef.current;
-    const size = 96;
+    const size = 92;
     const sampleRadius = Math.max(22, Math.min(img.naturalWidth, img.naturalHeight) * 0.055);
     const cx = dragPos.x * img.naturalWidth;
     const cy = dragPos.y * img.naturalHeight;
@@ -74,7 +74,6 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
       size
     );
 
-    // Crosshair
     ctx.strokeStyle = '#14b8a6';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -196,53 +195,46 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
   };
 
   const polygonPoints = quad.map((p) => `${p.x * 100},${p.y * 100}`).join(' ');
-  // Even-odd path dims only outside the document quadrilateral
   const scrimPath = `M 0,0 H 100 V 100 H 0 Z M ${quad[0].x * 100},${quad[0].y * 100} L ${quad[1].x * 100},${quad[1].y * 100} L ${quad[2].x * 100},${quad[2].y * 100} L ${quad[3].x * 100},${quad[3].y * 100} Z`;
 
-  // Perspective 3x3 alignment grid lines shown while actively adjusting corners or edges
   const isDragging = activeIdx !== null || activeEdgeIdx !== null;
   const lerpPt = (a: Point2D, b: Point2D, t: number): Point2D => ({
     x: (a.x + (b.x - a.x) * t) * 100,
     y: (a.y + (b.y - a.y) * t) * 100,
   });
 
-  // Position loupe away from the dragged corner so it never covers the point under your finger
   const loupeOnRight = dragPos ? dragPos.x < 0.38 && dragPos.y < 0.38 : false;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-slate-500">
-          Drag corners or edge bars to align with document borders
-          {imgSize.w > 0 ? ` · ${imgSize.w} × ${imgSize.h}px` : ''}
-        </span>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-2.5">
+      {!hideTopActions && (
+        <div className="flex items-center justify-end gap-2">
           {onAutoDetect && (
             <button
               type="button"
               onClick={onAutoDetect}
               disabled={detecting}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
-              <span>{detecting ? 'Detecting...' : 'Auto-Detect Corners'}</span>
+              <span>{detecting ? 'Detecting...' : 'Auto-Detect'}</span>
             </button>
           )}
           <button
             type="button"
             onClick={setFullFrame}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Maximize2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
             <span>Full Frame</span>
           </button>
         </div>
-      </div>
+      )}
 
-      <div className="relative flex items-center justify-center rounded-xl editor-mat-bg p-4 min-h-[360px] max-h-[540px] overflow-hidden select-none">
+      <div className="relative flex items-center justify-center rounded-2xl border border-slate-200/80 editor-mat-bg p-3 sm:p-5 min-h-[260px] sm:min-h-[360px] max-h-[58dvh] sm:max-h-[480px] overflow-hidden select-none">
         <div
           ref={containerRef}
-          className="relative inline-block max-h-[490px]"
+          className="relative inline-block max-h-[50dvh] sm:max-h-[430px] shadow-md"
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
@@ -251,16 +243,15 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
             src={imageSrc}
             alt="Document source for perspective cropping"
             referrerPolicy="no-referrer"
-            className="block max-h-[490px] w-auto max-w-full rounded object-contain pointer-events-none"
+            className="block max-h-[50dvh] sm:max-h-[430px] w-auto max-w-full rounded-sm object-contain pointer-events-none"
           />
 
-          {/* SVG outer dark scrim + quad outline + perspective alignment grid */}
           <svg
             viewBox="0 0 100 100"
             preserveAspectRatio="none"
             className="absolute inset-0 h-full w-full pointer-events-none"
           >
-            <path d={scrimPath} fill="rgba(2, 6, 23, 0.48)" fillRule="evenodd" />
+            <path d={scrimPath} fill="rgba(15, 23, 42, 0.42)" fillRule="evenodd" />
             {isDragging &&
               [1 / 3, 2 / 3].map((t, idx) => {
                 const top = lerpPt(quad[0], quad[1], t);
@@ -268,7 +259,7 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
                 const left = lerpPt(quad[0], quad[3], t);
                 const right = lerpPt(quad[1], quad[2], t);
                 return (
-                  <g key={idx} stroke="rgba(45, 212, 191, 0.5)" strokeWidth="0.35" vectorEffect="non-scaling-stroke">
+                  <g key={idx} stroke="rgba(45, 212, 191, 0.55)" strokeWidth="0.35" vectorEffect="non-scaling-stroke">
                     <line x1={top.x} y1={top.y} x2={bot.x} y2={bot.y} />
                     <line x1={left.x} y1={left.y} x2={right.x} y2={right.y} />
                   </g>
@@ -276,9 +267,9 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
               })}
             <polygon
               points={polygonPoints}
-              fill="rgba(20, 184, 166, 0.06)"
-              stroke="#14b8a6"
-              strokeWidth="0.7"
+              fill="rgba(20, 184, 166, 0.08)"
+              stroke="#0d9488"
+              strokeWidth="0.85"
               vectorEffect="non-scaling-stroke"
             />
           </svg>
@@ -302,11 +293,11 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
                   top: `${my}%`,
                   transform: `translate(-50%, -50%) rotate(${angle}deg)`,
                 }}
-                className="absolute h-8 w-10 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-white"
+                className="absolute h-8 w-10 flex items-center justify-center touch-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-teal-500"
               >
                 <span
                   className={`h-1.5 w-6 rounded-full border border-white shadow-md transition-colors ${
-                    activeEdgeIdx === edgeIdx ? 'bg-teal-300 scale-110' : 'bg-teal-500'
+                    activeEdgeIdx === edgeIdx ? 'bg-teal-400 scale-110' : 'bg-teal-600'
                   }`}
                 />
               </button>
@@ -325,11 +316,11 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
                 left: `${pt.x * 100}%`,
                 top: `${pt.y * 100}%`,
               }}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 h-10 w-10 flex items-center justify-center rounded-full touch-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-white ${
+              className={`absolute -translate-x-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full touch-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:outline-teal-500 ${
                 activeIdx === idx ? 'scale-115' : ''
               }`}
             >
-              <span className="h-4 w-4 rounded-full bg-teal-500 border-2 border-white shadow-md" />
+              <span className="h-4.5 w-4.5 rounded-full bg-teal-600 border-2 border-white shadow-md" />
             </button>
           ))}
 
@@ -337,12 +328,12 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
           {isDragging && dragPos && (
             <div
               data-testid="crop-precision-loupe"
-              className={`pointer-events-none absolute top-3 z-20 overflow-hidden rounded-full border-2 border-teal-400 shadow-lg bg-slate-900 ${
+              className={`pointer-events-none absolute top-3 z-20 overflow-hidden rounded-full border-2 border-teal-500 shadow-lg bg-slate-900 ${
                 loupeOnRight ? 'right-3' : 'left-3'
               }`}
-              style={{ width: 96, height: 96 }}
+              style={{ width: 92, height: 92 }}
             >
-              <canvas ref={loupeCanvasRef} width={96} height={96} className="block" />
+              <canvas ref={loupeCanvasRef} width={92} height={92} className="block" />
             </div>
           )}
         </div>

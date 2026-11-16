@@ -37,10 +37,10 @@
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* Subtle dark-mat grid for document editor & crop canvas */
+/* Cohesive light studio-mat grid for document editor & crop canvas */
 .editor-mat-bg {
-  background-color: #111827;
-  background-image: radial-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px);
+  background-color: #f1f5f9;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.085) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 

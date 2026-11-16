@@ -2,29 +2,31 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowRight,
   ArrowUp,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Copy,
+  Circle,
   Crop,
   Download,
   Eraser,
   Eye,
-  FileDown,
   FlipHorizontal,
   GripVertical,
   Highlighter,
   Layers,
+  Maximize2,
   Pencil,
   PenTool,
   Plus,
   RotateCcw,
   RotateCw,
   ScanText,
-  Search,
+  Slash,
   SlidersHorizontal,
+  Sparkles,
   Square,
   Stamp,
   Trash2,
@@ -42,6 +44,7 @@ import type {
   SavedSignature,
   ScanDocument,
   ScannedPage,
+  ShapeKind,
   WatermarkConfig,
 } from '../types/scanner';
 import { DEFAULT_ADJUSTMENTS } from '../types/scanner';
@@ -49,7 +52,9 @@ import { useHaptics } from '../hooks/useHaptics';
 import { clamp } from '../utils/cvGeometry';
 import { reorderPageInList } from '../utils/projectHelpers';
 import {
+  clampAnnotationMove,
   clampPanOffset,
+  computeCenteredPlacement,
   computePinchZoomScale,
   resizeAnnotationByDelta,
   type ResizeHandle,
@@ -60,14 +65,8 @@ import {
   processPagePipeline,
   renderPageThumbnail,
 } from '../utils/imageProcessor';
-import {
-  countOcrWords,
-  extractStructuredOcrEntities,
-  runFreeOcr,
-  searchOcrTextMatches,
-  type OcrLayoutMode,
-} from '../utils/ocrEngine';
-import { exportOcrTextFile } from '../utils/pdfExporter';
+import { runFreeOcr, type OcrLayoutMode } from '../utils/ocrEngine';
+import { OcrDocumentViewer } from './OcrDocumentViewer';
 import { OverlayPropertiesBar } from './OverlayPropertiesBar';
 import { PerspectiveCropCanvas } from './PerspectiveCropCanvas';
 import { SignatureModal, type SignatureDocPayload } from './SignatureModal';
@@ -128,6 +127,8 @@ type PointerDragState =
       startY: number;
       origX: number;
       origY: number;
+      width: number;
+      height: number;
       moved: boolean;
     }
   | {
@@ -177,9 +178,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('enhance');
   const [mobilePanel, setMobilePanel] = useState<MobileToolTab>('enhance');
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [mobileFilterCustomOpen, setMobileFilterCustomOpen] = useState(false);
   const [viewOcrOpen, setViewOcrOpen] = useState(false);
+  const [editOcrOpen, setEditOcrOpen] = useState(false);
   const [viewPagesOpen, setViewPagesOpen] = useState(false);
-  const [ocrSearchQuery, setOcrSearchQuery] = useState('');
   const [compareOriginal, setCompareOriginal] = useState(false);
   const [zoomScale, setZoomScale] = useState(1.0);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -201,10 +203,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [selectedAnnId, setSelectedAnnId] = useState<string | null>(null);
   const [inlineTextEditId, setInlineTextEditId] = useState<string | null>(null);
   const [aspectLocked, setAspectLocked] = useState(true);
+  const [mobileMarkupSection, setMobileMarkupSection] = useState<'sign' | 'text' | 'shapes' | 'draw'>('sign');
 
   // Gesture zoom refs (pinch-to-zoom & double-tap)
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.matchMedia('(max-width: 768px)').matches;
-  const oldBitScannerMobileEditor = isMobile && editorMode === 'edit';
   const stageViewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageDims, setStageDims] = useState<{ width: number; height: number }>({
@@ -272,8 +274,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [ocrStatus, setOcrStatus] = useState('');
   const [ocrBatchStatus, setOcrBatchStatus] = useState<string | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
-  const [copiedOcr, setCopiedOcr] = useState(false);
-  const [copiedEntity, setCopiedEntity] = useState<string | null>(null);
 
   // Title edit
   const [titleDraft, setTitleDraft] = useState(document.title);
@@ -323,7 +323,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     editSnapshotRef.current = structuredClone(document);
     setIsDirty(false);
     setViewOcrOpen(false);
+    setEditOcrOpen(false);
     setViewPagesOpen(false);
+    setMobileFilterCustomOpen(false);
     setEditorMode('edit');
     setCompareOriginal(false);
     setSelectedAnnId(null);
@@ -358,6 +360,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     setDrawTool('none');
     setCompareOriginal(false);
     setMobilePanelOpen(false);
+    setMobileFilterCustomOpen(false);
+    setEditOcrOpen(false);
     setEditorMode('view');
     setSavedNotice(true);
     window.setTimeout(() => setSavedNotice(false), 1800);
@@ -380,6 +384,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     setDrawTool('none');
     setCompareOriginal(false);
     setMobilePanelOpen(false);
+    setMobileFilterCustomOpen(false);
+    setEditOcrOpen(false);
     setEditorMode('view');
   };
 
@@ -743,42 +749,70 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   };
 
   const placeSignature = (sig: SavedSignature) => {
+    const width = 0.34;
+    const height = 0.14;
+    const { x, y } = computeCenteredPlacement(width, height);
     addAnnotation({
       id: crypto.randomUUID(),
       type: 'signature',
-      x: 0.54,
-      y: 0.72,
-      width: 0.34,
-      height: 0.14,
+      x,
+      y,
+      width,
+      height,
       opacity: 1,
       imageDataUrl: sig.dataUrl,
     });
   };
 
   const addRedactionBox = (color = '#09090b') => {
+    const width = 0.4;
+    const height = 0.065;
+    const { x, y } = computeCenteredPlacement(width, height);
     addAnnotation({
       id: crypto.randomUUID(),
       type: 'redaction',
-      x: 0.24,
-      y: 0.42,
-      width: 0.4,
-      height: 0.065,
+      x,
+      y,
+      width,
+      height,
       color,
     });
   };
 
   const addTextStamp = () => {
     const txt = newTextInput.trim() || 'APPROVED';
+    const width = 0.36;
+    const height = 0.06;
+    const { x, y } = computeCenteredPlacement(width, height);
     addAnnotation({
       id: crypto.randomUUID(),
       type: 'text',
-      x: 0.14,
-      y: 0.14,
-      width: 0.36,
-      height: 0.06,
+      x,
+      y,
+      width,
+      height,
       text: txt,
       color: '#b91c1c',
       fontSize: 0.032,
+      opacity: 1,
+    });
+  };
+
+  const addShapeAnnotation = (kind: ShapeKind) => {
+    const width = kind === 'line' || kind === 'arrow' ? 0.36 : 0.24;
+    const height = kind === 'line' || kind === 'arrow' ? 0.08 : 0.16;
+    const { x, y } = computeCenteredPlacement(width, height);
+    addAnnotation({
+      id: crypto.randomUUID(),
+      type: 'shape',
+      shapeKind: kind,
+      x,
+      y,
+      width,
+      height,
+      color: '#0f766e',
+      fillColor: 'transparent',
+      strokeWidth: 0.006,
       opacity: 1,
     });
   };
@@ -937,9 +971,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         if (Math.abs(dx) > 0.004 || Math.abs(dy) > 0.004) {
           drag.moved = true;
         }
-        const nx = clamp(drag.origX + dx, 0, 0.92);
-        const ny = clamp(drag.origY + dy, 0, 0.94);
-        patchAnnotation(drag.id, { x: nx, y: ny });
+        const pos = clampAnnotationMove(drag.origX, drag.origY, drag.width, drag.height, dx, dy);
+        patchAnnotation(drag.id, pos);
       } else if (drag.kind === 'resize') {
         const patch = resizeAnnotationByDelta(drag.origAnn, dx, dy, drag.handle);
         patchAnnotation(drag.id, patch);
@@ -986,7 +1019,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     setActiveStrokePoints(null);
   };
 
-  const selectOverlayForEdit = (ann: AnnotationItem) => {
+  const openSelectedOverlayEditor = (ann: AnnotationItem) => {
+    haptics.tap();
     setSelectedAnnId(ann.id);
     setInspectorTab('markup');
     setMobilePanel('markup');
@@ -1014,6 +1048,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         ...p,
         ocrText: res.text || 'No readable text detected on this page.',
         ocrConfidence: res.confidence,
+        ocrBlocks: res.blocks,
       }));
       haptics.success();
     } catch {
@@ -1048,6 +1083,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           ...nextPages[i],
           ocrText: res.text || 'No readable text detected on this page.',
           ocrConfidence: res.confidence,
+          ocrBlocks: res.blocks,
         };
       }
       onUpdateDocument({
@@ -1066,17 +1102,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
   };
 
-  const handleCopyEntity = async (value: string) => {
-    haptics.tap();
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopiedEntity(value);
-      window.setTimeout(() => setCopiedEntity((cur) => (cur === value ? null : cur)), 1400);
-    } catch {
-      // Ignore clipboard permission errors
-    }
-  };
-
   const updateWatermark = (patch: Partial<WatermarkConfig>) => {
     if (!activePage) return;
     updateActivePage((p) => ({
@@ -1086,17 +1111,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   };
 
   if (!activePage) return null;
-
-  const ocrWordCount = countOcrWords(activePage.ocrText);
-  const ocrSearchMatches = searchOcrTextMatches(activePage.ocrText, ocrSearchQuery);
-  const ocrEntities = extractStructuredOcrEntities(activePage.ocrText);
-  const ocrEntityChips: Array<{ kind: string; value: string }> = [
-    ...ocrEntities.emails.map((value) => ({ kind: 'Email', value })),
-    ...ocrEntities.phones.map((value) => ({ kind: 'Phone', value })),
-    ...ocrEntities.amounts.map((value) => ({ kind: 'Amount', value })),
-    ...ocrEntities.dates.map((value) => ({ kind: 'Date', value })),
-    ...ocrEntities.urls.map((value) => ({ kind: 'Link', value })),
-  ];
 
   const displayImage =
     editorMode === 'edit' && compareOriginal
@@ -1197,7 +1211,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 data-testid="view-export-btn"
                 aria-label="Export document"
-                className="inline-flex h-9 lg:h-auto items-center gap-1.5 rounded-xl lg:rounded-lg bg-teal-600 px-3 lg:px-3.5 lg:py-1.5 text-xs font-semibold text-white hover:bg-teal-700 active:scale-[0.98] cursor-pointer"
+                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 active:scale-[0.98] cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Export</span>
@@ -1205,7 +1219,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           </>
         ) : (
-          /* EDIT MODE TOP BAR */
+          /* EDIT MODE TOP BAR — mobile keeps Cancel + Title + Compare so Rotate/Crop/Save aren't duplicated in bottom dock */
           <>
             <div className="flex items-center gap-1.5 lg:gap-3 min-w-0 flex-1">
               <button
@@ -1233,7 +1247,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     onUpdateDocument({ ...document, title: trimmed, updatedAt: Date.now() });
                   }
                 }}
-                className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-slate-200 px-2 py-1 text-sm font-bold text-slate-900 focus:border-teal-600 focus:outline-none"
+                className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-bold text-slate-900 focus:border-teal-600 focus:outline-none"
               />
             </div>
 
@@ -1242,10 +1256,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={() => setCompareOriginal((v) => !v)}
                 aria-label={compareOriginal ? 'Show enhanced scan' : 'Compare with original photo'}
-                className={`inline-flex h-10 lg:h-auto min-w-[40px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg lg:border px-2 lg:px-3 lg:py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-10 lg:h-auto min-w-[40px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   compareOriginal
-                    ? 'lg:border-teal-600 bg-teal-50 text-teal-800'
-                    : 'lg:border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-teal-600 bg-teal-50 text-teal-800'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 <Eye className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
@@ -1258,10 +1272,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={() => handleRotate(90)}
                 aria-label="Rotate page 90 degrees"
-                className="hidden sm:inline-flex h-10 lg:h-auto items-center justify-center gap-1.5 rounded-xl lg:rounded-lg lg:border lg:border-slate-200 bg-white px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <RotateCw className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
-                <span className="hidden lg:inline">Rotate</span>
+                <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Rotate</span>
               </button>
 
               <button
@@ -1272,17 +1286,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 aria-label="Re-crop perspective corners"
                 data-testid="edit-recrop-btn"
-                className="inline-flex h-10 lg:h-auto min-w-[40px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg lg:border lg:border-slate-200 bg-white px-2 lg:px-3 lg:py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <Crop className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
-                <span className="hidden sm:inline">Crop</span>
+                <Crop className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Crop</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleSaveEdits}
                 data-testid="save-edits-btn"
-                className="inline-flex h-10 lg:h-auto items-center gap-1.5 rounded-xl lg:rounded-lg bg-teal-600 px-3.5 lg:px-4 lg:py-1.5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer"
+                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer"
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Save</span>
@@ -1412,13 +1426,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           </aside>
         )}
 
-        {/* Center Dark-Mat Document Stage (Pinch-to-Zoom & Pan) */}
+        {/* Center Light Studio-Mat Document Stage (Pinch-to-Zoom & Pan) */}
         <section className="relative flex flex-1 min-h-0 flex-col overflow-hidden editor-mat-bg">
           {/* Edit Mode Multi-Page Switcher Strip */}
           {editorMode === 'edit' && document.pages.length > 1 && (
             <div
               data-testid="edit-mode-page-switcher"
-              className="shrink-0 flex items-center justify-center gap-1.5 border-b border-slate-800 bg-slate-950/80 px-3 py-1.5 text-white"
+              className="shrink-0 flex items-center justify-center gap-1.5 border-b border-slate-200 bg-white/95 px-3 py-1.5 text-slate-800 backdrop-blur-xs"
             >
               <button
                 type="button"
@@ -1429,7 +1443,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   setActivePageIdx(Math.max(0, safeIdx - 1));
                 }}
                 aria-label="Edit previous page"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1447,8 +1461,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }}
                     className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-mono-tabular font-semibold transition-colors cursor-pointer ${
                       idx === safeIdx
-                        ? 'border-teal-400 bg-teal-600 text-white'
-                        : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-slate-500'
+                        ? 'border-teal-600 bg-teal-600 text-white shadow-2xs'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
                     }`}
                   >
                     <img
@@ -1470,7 +1484,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   setActivePageIdx(Math.min(document.pages.length - 1, safeIdx + 1));
                 }}
                 aria-label="Edit next page"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-slate-800 disabled:opacity-30 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
               >
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1584,7 +1598,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }
                   : {}),
               }}
-              className={`relative w-full max-w-[520px] bg-white shadow-2xl select-none touch-none transition-transform duration-75 ease-out ${
+              className={`relative w-full max-w-[520px] bg-white ring-1 ring-slate-900/10 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.22)] select-none touch-none transition-transform duration-75 ease-out ${
                 editorMode === 'edit' && drawTool !== 'none'
                   ? 'cursor-crosshair'
                   : zoomScale > 1.02
@@ -1655,7 +1669,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 </svg>
               )}
 
-              {/* Overlays: Interactive with Resize/Text Handles in EDIT MODE; Clean read-only in VIEW MODE */}
+              {/* Overlays: Interactive with 4-Corner Resize & Explicit Edit Pill in EDIT MODE; Clean read-only in VIEW MODE */}
               {!(editorMode === 'edit' && compareOriginal) &&
                 activePage.annotations
                   .filter((a) => a.type !== 'stroke')
@@ -1677,7 +1691,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             ? (e) => {
                                 if (drawTool !== 'none' || isInlineEditing) return;
                                 e.stopPropagation();
-                                selectOverlayForEdit(ann);
+                                // Selecting/dragging ONLY selects the overlay — NEVER auto-opens Markup drawer
+                                setSelectedAnnId(ann.id);
                                 pointerDragRef.current = {
                                   kind: 'move',
                                   id: ann.id,
@@ -1685,6 +1700,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origX: ann.x,
                                   origY: ann.y,
+                                  width: ann.width,
+                                  height: ann.height,
                                   moved: false,
                                 };
                                 try {
@@ -1734,6 +1751,74 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           />
                         )}
 
+                        {ann.type === 'shape' && (
+                          <svg
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                            className="h-full w-full overflow-visible pointer-events-none"
+                          >
+                            {(!ann.shapeKind || ann.shapeKind === 'rect') && (
+                              <rect
+                                x="2"
+                                y="2"
+                                width="96"
+                                height="96"
+                                rx="4"
+                                fill={ann.fillColor && ann.fillColor !== 'transparent' ? ann.fillColor : 'none'}
+                                stroke={ann.color || '#0f766e'}
+                                strokeWidth="3.5"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )}
+                            {ann.shapeKind === 'circle' && (
+                              <ellipse
+                                cx="50"
+                                cy="50"
+                                rx="48"
+                                ry="48"
+                                fill={ann.fillColor && ann.fillColor !== 'transparent' ? ann.fillColor : 'none'}
+                                stroke={ann.color || '#0f766e'}
+                                strokeWidth="3.5"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )}
+                            {ann.shapeKind === 'line' && (
+                              <line
+                                x1="2"
+                                y1="50"
+                                x2="98"
+                                y2="50"
+                                stroke={ann.color || '#0f766e'}
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )}
+                            {ann.shapeKind === 'arrow' && (
+                              <path
+                                d="M 3 50 H 95 M 78 24 L 96 50 L 78 76"
+                                fill="none"
+                                stroke={ann.color || '#0f766e'}
+                                strokeWidth="3.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )}
+                            {ann.shapeKind === 'check' && (
+                              <path
+                                d="M 14 54 L 40 82 L 86 20"
+                                fill="none"
+                                stroke={ann.color || '#0f766e'}
+                                strokeWidth="4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                vectorEffect="non-scaling-stroke"
+                              />
+                            )}
+                          </svg>
+                        )}
+
                         {ann.type === 'text' && (
                           <>
                             {isInlineEditing ? (
@@ -1769,40 +1854,129 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           </>
                         )}
 
-                        {/* Selection Resize & Action Handles (ONLY in Edit Mode when selected) */}
+                        {/* Selection Action Pill & All 4 Corner Resize Handles (ONLY in Edit Mode when selected) */}
                         {isSelected && (
                           <>
-                            {/* Delete button (top-right) */}
-                            <button
-                              type="button"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeAnnotation(ann.id);
-                              }}
-                              aria-label="Delete selected annotation"
-                              className="absolute -right-3 -top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white shadow cursor-pointer"
-                            >
-                              <X className="h-3.5 w-3.5" aria-hidden="true" />
-                            </button>
-
-                            {/* Quick inline Edit Text button on selected text box */}
-                            {ann.type === 'text' && !isInlineEditing && (
-                              <button
-                                type="button"
+                            {/* Explicit Action Pill Above Overlay (keeps all 4 corners completely clear!) */}
+                            {!isInlineEditing && (
+                              <div
                                 onPointerDown={(e) => e.stopPropagation()}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setInlineTextEditId(ann.id);
-                                }}
-                                aria-label="Edit text content"
-                                className="absolute -left-3 -top-3 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-white shadow cursor-pointer"
+                                className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1.5 py-0.5 shadow-lg backdrop-blur-xs"
                               >
-                                <Pencil className="h-3 w-3" aria-hidden="true" />
-                              </button>
+                                <button
+                                  type="button"
+                                  data-testid="overlay-edit-action-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openSelectedOverlayEditor(ann);
+                                  }}
+                                  aria-label="Edit overlay properties"
+                                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                                >
+                                  <Pencil className="h-3 w-3 text-teal-600" aria-hidden="true" />
+                                  <span>Edit</span>
+                                </button>
+                                <span className="h-3.5 w-px bg-slate-200" aria-hidden="true" />
+                                <button
+                                  type="button"
+                                  data-testid="overlay-delete-action-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeAnnotation(ann.id);
+                                  }}
+                                  aria-label="Delete selected annotation"
+                                  className="flex h-6 w-6 items-center justify-center rounded-full text-red-600 hover:bg-red-50 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" aria-hidden="true" />
+                                </button>
+                              </div>
                             )}
 
-                            {/* East Edge Width Handle — stretch signature/text/box width directly */}
+                            {/* Top-Left Corner Handle (Left-side resize!) */}
+                            <div
+                              role="slider"
+                              aria-label="Resize overlay from top-left corner"
+                              aria-valuenow={Math.round(ann.width * 100)}
+                              data-testid="resize-handle-nw"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                pointerDragRef.current = {
+                                  kind: 'resize',
+                                  handle: 'nw',
+                                  id: ann.id,
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  origAnn: { ...ann },
+                                };
+                                stageRef.current?.setPointerCapture(e.pointerId);
+                              }}
+                              className="absolute -top-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
+                            />
+
+                            {/* Top-Right Corner Handle */}
+                            <div
+                              role="slider"
+                              aria-label="Resize overlay from top-right corner"
+                              aria-valuenow={Math.round(ann.width * 100)}
+                              data-testid="resize-handle-ne"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                pointerDragRef.current = {
+                                  kind: 'resize',
+                                  handle: 'ne',
+                                  id: ann.id,
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  origAnn: { ...ann },
+                                };
+                                stageRef.current?.setPointerCapture(e.pointerId);
+                              }}
+                              className="absolute -top-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
+                            />
+
+                            {/* Bottom-Left Corner Handle (Left-side resize!) */}
+                            <div
+                              role="slider"
+                              aria-label="Resize overlay from bottom-left corner"
+                              aria-valuenow={Math.round(ann.width * 100)}
+                              data-testid="resize-handle-sw"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                pointerDragRef.current = {
+                                  kind: 'resize',
+                                  handle: 'sw',
+                                  id: ann.id,
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  origAnn: { ...ann },
+                                };
+                                stageRef.current?.setPointerCapture(e.pointerId);
+                              }}
+                              className="absolute -bottom-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
+                            />
+
+                            {/* Bottom-Right Corner Handle */}
+                            <div
+                              role="slider"
+                              aria-label="Resize overlay size"
+                              aria-valuenow={Math.round(ann.width * 100)}
+                              data-testid="resize-handle-se"
+                              onPointerDown={(e) => {
+                                e.stopPropagation();
+                                pointerDragRef.current = {
+                                  kind: 'resize',
+                                  handle: 'se',
+                                  id: ann.id,
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  origAnn: { ...ann },
+                                };
+                                stageRef.current?.setPointerCapture(e.pointerId);
+                              }}
+                              className="absolute -bottom-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
+                            />
+
+                            {/* East Edge Width Handle */}
                             <div
                               role="slider"
                               aria-label="Resize overlay width"
@@ -1824,27 +1998,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             >
                               <span className="h-3 w-0.5 rounded-full bg-white" />
                             </div>
-
-                            {/* Bottom-Right Corner Scale Handle — proportionally increase/decrease size */}
-                            <div
-                              role="slider"
-                              aria-label="Resize overlay size"
-                              aria-valuenow={Math.round(ann.width * 100)}
-                              data-testid="resize-handle-se"
-                              onPointerDown={(e) => {
-                                e.stopPropagation();
-                                pointerDragRef.current = {
-                                  kind: 'resize',
-                                  handle: 'se',
-                                  id: ann.id,
-                                  startX: e.clientX,
-                                  startY: e.clientY,
-                                  origAnn: { ...ann },
-                                };
-                                stageRef.current?.setPointerCapture(e.pointerId);
-                              }}
-                              className="absolute -bottom-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
-                            />
                           </>
                         )}
                       </div>
@@ -1889,11 +2042,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           </div>
 
-          {/* VIEW MODE: Floating Page Indicator & Thumbnails */}
+          {/* VIEW MODE: Sleek Theme-Compatible Page Indicator & Thumbnails */}
           {editorMode === 'view' && (
             <div
               data-testid="view-mode-footer"
-              className="mx-auto mb-2.5 lg:mb-5 shrink-0 inline-flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-2xl border border-slate-700/80 bg-slate-950/90 px-3.5 py-1.5 lg:px-4 lg:py-2 text-white shadow-xl backdrop-blur-md"
+              className="mx-auto mb-2.5 lg:mb-5 shrink-0 inline-flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-2xl border border-slate-200/90 bg-white/95 px-3.5 py-1.5 lg:px-4 lg:py-2 text-slate-800 shadow-lg backdrop-blur-md"
             >
               {document.pages.length > 1 && (
                 <div className="flex items-center gap-1.5 overflow-x-auto">
@@ -1908,8 +2061,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       aria-label={`View page ${idx + 1}`}
                       className={`relative shrink-0 overflow-hidden rounded-lg border-2 transition-all cursor-pointer ${
                         idx === safeIdx
-                          ? 'border-teal-400 scale-105'
-                          : 'border-slate-700 opacity-70 hover:opacity-100'
+                          ? 'border-teal-600 ring-2 ring-teal-500/20 scale-105'
+                          : 'border-slate-200 opacity-75 hover:opacity-100'
                       }`}
                     >
                       <img
@@ -1925,7 +2078,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
               <span
                 data-testid="view-mode-page-indicator"
-                className="font-mono-tabular text-xs font-medium text-slate-200 whitespace-nowrap"
+                className="font-mono-tabular text-xs font-semibold text-slate-700 whitespace-nowrap"
               >
                 Page {safeIdx + 1} of {document.pages.length}
               </span>
@@ -2024,344 +2177,41 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           )}
 
-          {/* CamScanner-Style Native Mobile Bottom Action Dock in View Mode */}
-          {editorMode === 'view' && (
-            <div
-              data-testid="view-mobile-bottom-dock"
-              className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
-            >
-              <div className="grid grid-cols-5 h-[58px] px-1">
-                <button
-                  type="button"
-                  data-testid="mobile-view-add-page-btn"
-                  onClick={() => {
-                    haptics.tap();
-                    onAddPagesToDoc();
-                  }}
-                  className="flex flex-col items-center justify-center min-h-[44px] text-slate-700 active:scale-95 transition-transform cursor-pointer"
-                >
-                  <Plus className="h-4 w-4 text-teal-700" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-semibold">Add Page</span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="mobile-view-ocr-btn"
-                  onClick={() => {
-                    haptics.tap();
-                    setViewOcrOpen((v) => !v);
-                    if (!viewOcrOpen) setViewPagesOpen(false);
-                  }}
-                  aria-pressed={viewOcrOpen}
-                  className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-                    viewOcrOpen ? 'text-teal-700' : 'text-slate-700'
-                  }`}
-                >
-                  <ScanText className="h-4 w-4" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-semibold">OCR</span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="mobile-view-edit-btn"
-                  onClick={enterEditMode}
-                  className="flex flex-col items-center justify-center min-h-[44px] text-slate-900 active:scale-95 transition-transform cursor-pointer"
-                >
-                  <Pencil className="h-4 w-4 text-teal-700" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-bold">Edit</span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="view-pages-toggle-btn"
-                  onClick={() => {
-                    haptics.tap();
-                    setViewPagesOpen((v) => !v);
-                    if (!viewPagesOpen) setViewOcrOpen(false);
-                  }}
-                  aria-pressed={viewPagesOpen}
-                  className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-                    viewPagesOpen ? 'text-teal-700' : 'text-slate-700'
-                  }`}
-                >
-                  <Layers className="h-4 w-4" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-semibold">
-                    Pages ({document.pages.length})
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  data-testid="mobile-view-export-btn"
-                  onClick={() => {
-                    haptics.tap();
-                    onOpenExport(safeIdx);
-                  }}
-                  className="flex flex-col items-center justify-center min-h-[44px] text-teal-700 active:scale-95 transition-transform cursor-pointer"
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  <span className="mt-0.5 text-[10px] font-bold">Export</span>
-                </button>
-              </div>
-            </div>
-          )}
         </section>
 
-        {/* VIEW MODE RIGHT OCR PANEL (Desktop Sidebar + Mobile Bottom Sheet when toggled via OCR button) */}
-        {editorMode === 'view' && viewOcrOpen && (
-          <aside
-            data-testid="view-ocr-panel"
-            className="flex w-full lg:w-96 max-h-[54dvh] lg:max-h-none shrink-0 flex-col border-t lg:border-t-0 lg:border-l border-slate-200 bg-white overflow-hidden animate-sheet-up lg:animate-none"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <div className="flex items-center gap-2">
-                <ScanText className="h-4 w-4 text-teal-700" aria-hidden="true" />
-                <span className="text-xs font-bold text-slate-900">OCR Text Studio</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setViewOcrOpen(false)}
-                aria-label="Close OCR panel"
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <select
-                  value={ocrLang}
-                  onChange={(e) => setOcrLang(e.target.value)}
-                  aria-label="OCR Language"
-                  className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800 focus:border-teal-600 focus:outline-none"
-                >
-                  <option value="eng">English</option>
-                  <option value="spa">Spanish</option>
-                  <option value="fra">French</option>
-                  <option value="deu">German</option>
-                </select>
-                <button
-                  type="button"
-                  disabled={ocrRunning}
-                  onClick={handleRunOcr}
-                  data-testid="ocr-extract-btn"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
-                >
-                  <ScanText className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{ocrRunning ? `${ocrProgress}%` : 'Extract Page Text'}</span>
-                </button>
-              </div>
-
-              <div>
-                <div className="mb-1 text-[11px] font-medium text-slate-600">Layout Mode</div>
-                <div className="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1">
-                  {(
-                    [
-                      { id: 'auto', label: 'Auto' },
-                      { id: 'block', label: 'Dense Doc' },
-                      { id: 'sparse', label: 'Receipt / ID' },
-                    ] as const
-                  ).map((mode) => (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      data-testid={`ocr-layout-${mode.id}`}
-                      onClick={() => setOcrLayoutMode(mode.id)}
-                      className={`rounded-md py-1.5 text-[11px] font-semibold transition-colors cursor-pointer ${
-                        ocrLayoutMode === mode.id
-                          ? 'bg-white text-teal-800 shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {document.pages.length > 1 && (
-                <button
-                  type="button"
-                  disabled={ocrRunning}
-                  onClick={handleRunOcrAllPages}
-                  data-testid="ocr-extract-all-btn"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50/70 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-50 cursor-pointer"
-                >
-                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Scan All {document.pages.length} Pages</span>
-                </button>
-              )}
-
-              {/* Search inside extracted OCR text */}
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={ocrSearchQuery}
-                  onChange={(e) => setOcrSearchQuery(e.target.value)}
-                  placeholder="Search inside recognized text..."
-                  data-testid="ocr-search-input"
-                  aria-label="Search extracted OCR text"
-                  className="w-full rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs text-slate-800 focus:border-teal-600 focus:outline-none"
-                />
-              </div>
-
-              {ocrSearchQuery.trim() && (
-                <div
-                  data-testid="ocr-search-results"
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs"
-                >
-                  <div className="font-semibold text-slate-700 mb-1">
-                    {ocrSearchMatches.totalMatches}{' '}
-                    {ocrSearchMatches.totalMatches === 1 ? 'match' : 'matches'} found
-                  </div>
-                  {ocrSearchMatches.matchingLines.length > 0 ? (
-                    <ul className="flex flex-col gap-1 max-h-24 overflow-y-auto">
-                      {ocrSearchMatches.matchingLines.map((m) => (
-                        <li key={m.lineNumber} className="truncate text-[11px] text-slate-600">
-                          <span className="font-mono-tabular text-teal-700 mr-1.5">
-                            L{m.lineNumber}:
-                          </span>
-                          <span>{m.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-[11px] text-slate-500">No matching lines on this page.</p>
-                  )}
-                </div>
-              )}
-
-              {ocrRunning && (
-                <div className="rounded-lg bg-slate-50 p-2.5">
-                  {ocrBatchStatus && (
-                    <div className="mb-0.5 text-[11px] font-semibold text-teal-700">
-                      {ocrBatchStatus}
-                    </div>
-                  )}
-                  <div className="mb-1 flex justify-between text-[11px] text-slate-600">
-                    <span className="truncate">{ocrStatus}</span>
-                    <span className="font-mono-tabular">{ocrProgress}%</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                    <div
-                      className="h-full bg-teal-600 transition-all"
-                      style={{ width: `${ocrProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {ocrError && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
-                  {ocrError}
-                </div>
-              )}
-
-              <div>
-                <div className="mb-1 flex items-center justify-between text-xs text-slate-600">
-                  <span>Extracted Text</span>
-                  <span className="font-mono-tabular text-[11px] text-slate-500">
-                    {ocrWordCount > 0 ? `${ocrWordCount}w` : ''}
-                    {typeof activePage.ocrConfidence === 'number' && activePage.ocrText
-                      ? `${ocrWordCount > 0 ? ' · ' : ''}${activePage.ocrConfidence}% conf.`
-                      : ''}
-                  </span>
-                </div>
-                <textarea
-                  rows={8}
-                  value={activePage.ocrText}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    updateActivePage((p) => ({ ...p, ocrText: val }));
-                  }}
-                  placeholder="Click 'Extract Page Text' to recognize text from this scanned page..."
-                  className="w-full rounded-lg border border-slate-200 p-3 text-xs leading-relaxed text-slate-800 focus:border-teal-600 focus:outline-none"
-                />
-              </div>
-
-              {ocrEntityChips.length > 0 && (
-                <div
-                  data-testid="ocr-detected-entities"
-                  className="rounded-lg border border-slate-200 bg-slate-50 p-2.5"
-                >
-                  <div className="mb-1.5 text-[11px] font-semibold text-slate-700">
-                    Detected Fields (Tap to Copy)
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ocrEntityChips.map((item) => {
-                      const isCopied = copiedEntity === item.value;
-                      return (
-                        <button
-                          key={`${item.kind}-${item.value}`}
-                          type="button"
-                          onClick={() => handleCopyEntity(item.value)}
-                          className="inline-flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 hover:border-teal-500 hover:text-teal-800 cursor-pointer"
-                        >
-                          <span className="font-semibold text-teal-700">{item.kind}:</span>
-                          <span className="truncate max-w-[160px]">{item.value}</span>
-                          {isCopied && (
-                            <Check className="h-3 w-3 shrink-0 text-teal-600" aria-hidden="true" />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  disabled={!activePage.ocrText}
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(activePage.ocrText);
-                    setCopiedOcr(true);
-                    setTimeout(() => setCopiedOcr(false), 1500);
-                  }}
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  {copiedOcr ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
-                      <span>Copied</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Copy</span>
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  disabled={!activePage.ocrText}
-                  onClick={() =>
-                    exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'txt')
-                  }
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>.TXT</span>
-                </button>
-                <button
-                  type="button"
-                  disabled={!activePage.ocrText}
-                  onClick={() =>
-                    exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'doc')
-                  }
-                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
-                >
-                  <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>.DOC</span>
-                </button>
-              </div>
-            </div>
-          </aside>
+        {/* IN-STAGE MOBILE / SIDE-BY-SIDE DESKTOP OCR READER (View Mode OR Edit Mode) */}
+        {((editorMode === 'view' && viewOcrOpen) || (editorMode === 'edit' && editOcrOpen)) && (
+          <OcrDocumentViewer
+            docTitle={document.title}
+            pageNumber={safeIdx + 1}
+            totalPages={document.pages.length}
+            ocrText={activePage.ocrText}
+            ocrConfidence={activePage.ocrConfidence}
+            ocrBlocks={activePage.ocrBlocks}
+            ocrLang={ocrLang}
+            onChangeLang={setOcrLang}
+            ocrLayoutMode={ocrLayoutMode}
+            onChangeLayoutMode={setOcrLayoutMode}
+            ocrRunning={ocrRunning}
+            ocrProgress={ocrProgress}
+            ocrStatus={ocrStatus}
+            ocrBatchStatus={ocrBatchStatus}
+            ocrError={ocrError}
+            onRunOcr={handleRunOcr}
+            onRunOcrAllPages={document.pages.length > 1 ? handleRunOcrAllPages : undefined}
+            onChangeOcrText={(nextText) =>
+              updateActivePage((p) => ({
+                ...p,
+                ocrText: nextText,
+                ocrBlocks: undefined,
+              }))
+            }
+            onOpenExport={() => onOpenExport(safeIdx)}
+            onClose={() => {
+              setViewOcrOpen(false);
+              setEditOcrOpen(false);
+            }}
+          />
         )}
 
         {/* Desktop Right Inspector Sidebar — ONLY shown in EDIT MODE (Enhance / Markup / Watermark) */}
@@ -2698,6 +2548,36 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     )}
                   </div>
 
+                  {/* Geometric Shapes */}
+                  <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2">
+                    <span className="text-xs font-semibold text-slate-700">Shapes &amp; Callouts</span>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {(
+                        [
+                          { id: 'rect', label: 'Box', icon: Square },
+                          { id: 'circle', label: 'Circle', icon: Circle },
+                          { id: 'arrow', label: 'Arrow', icon: ArrowRight },
+                          { id: 'line', label: 'Line', icon: Slash },
+                          { id: 'check', label: 'Check', icon: Check },
+                        ] as const
+                      ).map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            data-testid={`desktop-add-shape-${s.id}`}
+                            onClick={() => addShapeAnnotation(s.id)}
+                            className="flex flex-col items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-700 hover:border-teal-600 hover:bg-teal-50/40 cursor-pointer"
+                          >
+                            <Icon className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                            <span>{s.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* Text Stamps & Redaction / White-Out */}
                   <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2.5">
                     <span className="text-xs font-semibold text-slate-700">Text &amp; Redaction</span>
@@ -3001,59 +2881,175 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         )}
       </div>
 
-      {/* OLD BITSCAN MOBILE EDIT TOOL TRAY + DARK ACTION DOCK — ONLY shown in EDIT MODE on mobile */}
+      {/* VIEW MODE MOBILE BOTTOM ACTION DOCK — stays persistent even when in-stage OCR is open! */}
+      {editorMode === 'view' && (
+        <div
+          data-testid="view-mobile-bottom-dock"
+          className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
+        >
+          <div className="grid grid-cols-5 h-[58px] px-1">
+            <button
+              type="button"
+              data-testid="mobile-view-add-page-btn"
+              onClick={() => {
+                haptics.tap();
+                onAddPagesToDoc();
+              }}
+              className="flex flex-col items-center justify-center min-h-[44px] text-slate-700 active:scale-95 transition-transform cursor-pointer"
+            >
+              <Plus className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <span className="mt-0.5 text-[10px] font-semibold">Add Page</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="mobile-view-ocr-btn"
+              onClick={() => {
+                haptics.tap();
+                setViewOcrOpen((v) => !v);
+                if (!viewOcrOpen) setViewPagesOpen(false);
+              }}
+              aria-pressed={viewOcrOpen}
+              className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
+                viewOcrOpen ? 'text-teal-700' : 'text-slate-700'
+              }`}
+            >
+              <ScanText className="h-4 w-4" aria-hidden="true" />
+              <span className="mt-0.5 text-[10px] font-semibold">OCR</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="mobile-view-edit-btn"
+              onClick={enterEditMode}
+              className="flex flex-col items-center justify-center min-h-[44px] text-slate-900 active:scale-95 transition-transform cursor-pointer"
+            >
+              <Pencil className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <span className="mt-0.5 text-[10px] font-bold">Edit</span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="view-pages-toggle-btn"
+              onClick={() => {
+                haptics.tap();
+                setViewPagesOpen((v) => !v);
+                if (!viewPagesOpen) setViewOcrOpen(false);
+              }}
+              aria-pressed={viewPagesOpen}
+              className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
+                viewPagesOpen ? 'text-teal-700' : 'text-slate-700'
+              }`}
+            >
+              <Layers className="h-4 w-4" aria-hidden="true" />
+              <span className="mt-0.5 text-[10px] font-semibold">
+                Pages ({document.pages.length})
+              </span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="mobile-view-export-btn"
+              onClick={() => {
+                haptics.tap();
+                onOpenExport(safeIdx);
+              }}
+              className="flex flex-col items-center justify-center min-h-[44px] text-teal-700 active:scale-95 transition-transform cursor-pointer"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span className="mt-0.5 text-[10px] font-bold">Export</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* THEME-COMPATIBLE NATIVE MOBILE EDIT TOOL TRAY + DOCK — ONLY shown in EDIT MODE on mobile */}
       {editorMode === 'edit' && (
         <div
           data-testid="edit-mode-mobile-dock"
-          className="lg:hidden shrink-0 bg-slate-900"
+          className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md text-slate-800 shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.12)]"
         >
           {mobilePanelOpen && (
-            <div className="max-h-[42dvh] overflow-y-auto border-b border-slate-800 bg-slate-900 px-4 py-3 animate-sheet-up">
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-xs font-bold text-white capitalize">
-                  {mobilePanel}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMobilePanelOpen(false)}
-                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-400 hover:text-white"
-                >
-                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
-                  <span>Hide</span>
-                </button>
+            <div className="max-h-[46dvh] overflow-y-auto border-b border-slate-200 bg-white px-3.5 py-2.5 animate-sheet-up">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {mobilePanel === 'enhance' && mobileFilterCustomOpen && (
+                    <button
+                      type="button"
+                      data-testid="mobile-filter-presets-back-btn"
+                      onClick={() => {
+                        haptics.tap();
+                        setMobileFilterCustomOpen(false);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Presets</span>
+                    </button>
+                  )}
+                  <span className="text-xs font-bold text-slate-900">
+                    {mobilePanel === 'crop'
+                      ? 'Crop & Orientation'
+                      : mobilePanel === 'enhance'
+                        ? mobileFilterCustomOpen
+                          ? 'Custom Fine-Tune'
+                          : 'Filters & Presets'
+                        : mobilePanel === 'markup'
+                          ? 'Markup & Signatures'
+                          : 'Watermark'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {mobilePanel === 'enhance' && !mobileFilterCustomOpen && (
+                    <button
+                      type="button"
+                      data-testid="mobile-filter-custom-btn"
+                      onClick={() => {
+                        haptics.tap();
+                        setMobileFilterCustomOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Custom</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobilePanelOpen(false);
+                      setMobileFilterCustomOpen(false);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 cursor-pointer"
+                  >
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                    <span>Hide</span>
+                  </button>
+                </div>
               </div>
 
-              {mobilePanel === 'enhance' && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex gap-3 overflow-x-auto pb-1 px-0.5">
-                    {FILTER_PRESETS.map((preset) => {
-                      const active = activePage.filter === preset.id;
-                      return (
-                        <button
-                          key={preset.id}
-                          type="button"
-                          onClick={() => handleFilterClick(preset.id)}
-                          className="flex flex-col items-center gap-1.5 min-w-[52px] transition-all active:scale-95"
-                        >
-                          <div className={`h-12 w-12 rounded-full border-2 overflow-hidden bg-slate-800 ${
-                            active ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-slate-600'
-                          }`}>
-                            <div className="h-full w-full bg-white flex items-center justify-center">
-                              <span className="text-lg font-bold text-slate-800" style={filterPreviewStyle(preset.id)}>Ab</span>
-                            </div>
-                          </div>
-                          <span className={`text-[10px] font-medium uppercase tracking-wider whitespace-nowrap ${
-                            active ? 'text-teal-600' : 'text-slate-500'
-                          }`}>{preset.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
+              {/* MERGED CROP & ORIENTATION COMPACT TRAY */}
+              {mobilePanel === 'crop' && (
+                <div className="flex flex-col gap-2.5" data-testid="mobile-crop-panel">
+                  <button
+                    type="button"
+                    data-testid="mobile-open-recrop-btn"
+                    onClick={() => {
+                      haptics.tap();
+                      setRecropQuad(activePage.quad);
+                      setRecropOpen(true);
+                    }}
+                    className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white shadow-2xs hover:bg-teal-700 active:scale-[0.98] cursor-pointer"
+                  >
+                    <Crop className="h-4 w-4" aria-hidden="true" />
+                    <span>Re-Crop Borders</span>
+                  </button>
+
+                  <div className="grid grid-cols-3 gap-1.5">
                     <button
                       type="button"
                       onClick={() => handleRotate(-90)}
-                      className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-slate-200 text-xs font-medium text-slate-700"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
                     >
                       <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>-90°</span>
@@ -3061,7 +3057,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRotate(90)}
-                      className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-slate-200 text-xs font-medium text-slate-700"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
                     >
                       <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>+90°</span>
@@ -3069,119 +3065,199 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <button
                       type="button"
                       onClick={handleFlip}
-                      className="flex min-h-[44px] items-center justify-center gap-1 rounded-xl border border-slate-200 text-xs font-medium text-slate-700"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
                     >
                       <FlipHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Flip</span>
                     </button>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {BACKGROUND_FINISHES.map((bg) => (
-                      <button
-                        key={bg.id}
-                        type="button"
-                        onClick={() => handleBackgroundChange(bg.value)}
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${
-                          (activePage.backgroundColor || '#ffffff') === bg.value
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 bg-white text-slate-700'
-                        }`}
-                      >
-                        <span
-                          className="h-3 w-3 rounded-sm border border-slate-300"
-                          style={
-                            bg.value === 'transparent'
-                              ? {
-                                  backgroundImage:
-                                    'linear-gradient(45deg, #cbd5e1 25%, transparent 25%), linear-gradient(-45deg, #cbd5e1 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #cbd5e1 75%), linear-gradient(-45deg, transparent 75%, #cbd5e1 75%)',
-                                  backgroundSize: '6px 6px',
-                                }
-                              : { backgroundColor: bg.value }
-                          }
-                        />
-                        <span>{bg.label}</span>
-                      </button>
-                    ))}
-                  </div>
+
                   {document.pages.length > 1 && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        data-testid="mobile-apply-filter-all"
-                        onClick={handleApplyFilterAllPages}
-                        className="flex min-h-[40px] items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-2.5 text-[11px] font-semibold text-teal-800"
-                      >
-                        Apply Filter to All
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="mobile-apply-orientation-all"
-                        onClick={handleApplyOrientationAllPages}
-                        className="flex min-h-[40px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-[11px] font-semibold text-slate-700"
-                      >
-                        Apply Rotation to All
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      data-testid="mobile-apply-orientation-all"
+                      onClick={handleApplyOrientationAllPages}
+                      className="flex min-h-[38px] items-center justify-center rounded-xl border border-teal-200 bg-teal-50/70 px-3 text-xs font-semibold text-teal-800 cursor-pointer"
+                    >
+                      Apply Rotation ({activePage.rotation}°) to All Pages
+                    </button>
                   )}
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    {(
-                      [
-                        { key: 'brightness', label: 'Brightness', min: -60, max: 60 },
-                        { key: 'contrast', label: 'Contrast', min: -60, max: 60 },
-                        { key: 'saturation', label: 'Saturation', min: -100, max: 80 },
-                        { key: 'sharpness', label: 'Sharpness', min: 0, max: 100 },
-                        { key: 'shadowRemoval', label: 'Shadow Lift', min: 0, max: 100 },
-                      ] as const
-                    ).map((ctrl) => (
-                      <div key={ctrl.key}>
-                        <div className="mb-1 flex justify-between text-[11px] text-slate-600">
-                          <span>{ctrl.label}</span>
-                          <span className="font-mono-tabular">{activePage.adjustments[ctrl.key]}</span>
-                        </div>
-                        <input
-                          type="range"
-                          min={ctrl.min}
-                          max={ctrl.max}
-                          value={activePage.adjustments[ctrl.key]}
-                          aria-label={`Mobile ${ctrl.label}`}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
-                            updateActivePage((p) => ({ ...p, adjustments: nextAdj }));
-                          }}
-                          onMouseUp={(e) => {
-                            const val = Number((e.target as HTMLInputElement).value);
-                            const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
-                            reprocessAndUpdatePage(
-                              activePage,
-                              activePage.filter,
-                              nextAdj,
-                              activePage.rotation,
-                              activePage.flipH
-                            );
-                          }}
-                          onTouchEnd={(e) => {
-                            const val = Number((e.target as HTMLInputElement).value);
-                            const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
-                            reprocessAndUpdatePage(
-                              activePage,
-                              activePage.filter,
-                              nextAdj,
-                              activePage.rotation,
-                              activePage.flipH
-                            );
-                          }}
-                          className="studio-slider w-full"
-                        />
-                      </div>
-                    ))}
-                  </div>
                 </div>
               )}
 
-              {mobilePanel === 'markup' && (
+              {mobilePanel === 'enhance' && (
                 <div className="flex flex-col gap-3">
-                  {/* Contextual Selected Overlay Editor on Mobile */}
+                  {!mobileFilterCustomOpen ? (
+                    <>
+                      <div
+                        data-testid="mobile-filter-presets-strip"
+                        className="flex items-start gap-3 overflow-x-auto pb-1 px-0.5"
+                      >
+                        {FILTER_PRESETS.map((preset) => {
+                          const active = activePage.filter === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              data-testid={`mobile-filter-preset-${preset.id}`}
+                              onClick={() => handleFilterClick(preset.id)}
+                              className="flex shrink-0 flex-col items-center gap-1.5 min-w-[58px] transition-all active:scale-95 cursor-pointer"
+                            >
+                              <div
+                                className={`h-14 w-12 rounded-xl border-2 overflow-hidden bg-slate-100 shadow-xs ${
+                                  active
+                                    ? 'border-teal-600 ring-2 ring-teal-500/25'
+                                    : 'border-slate-200'
+                                }`}
+                              >
+                                <img
+                                  src={activePage.croppedDataUrl || activePage.processedDataUrl}
+                                  alt={preset.label}
+                                  style={filterPreviewStyle(preset.id)}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <span
+                                className={`text-[10px] font-semibold tracking-tight whitespace-nowrap ${
+                                  active ? 'text-teal-700' : 'text-slate-600'
+                                }`}
+                              >
+                                {preset.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {document.pages.length > 1 && (
+                        <button
+                          type="button"
+                          data-testid="mobile-apply-filter-all"
+                          onClick={handleApplyFilterAllPages}
+                          className="flex min-h-[40px] w-full items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                        >
+                          Apply Filter to All {document.pages.length} Pages
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <div
+                      data-testid="mobile-filter-custom-panel"
+                      className="flex flex-col gap-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-700">
+                          Paper Background
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            reprocessAndUpdatePage(
+                              activePage,
+                              activePage.filter,
+                              { ...DEFAULT_ADJUSTMENTS },
+                              activePage.rotation,
+                              activePage.flipH
+                            )
+                          }
+                          className="rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                        >
+                          Reset Sliders
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {BACKGROUND_FINISHES.map((bg) => (
+                          <button
+                            key={bg.id}
+                            type="button"
+                            onClick={() => handleBackgroundChange(bg.value)}
+                            className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer ${
+                              (activePage.backgroundColor || '#ffffff') === bg.value
+                                ? 'border-teal-600 bg-teal-50 text-teal-900'
+                                : 'border-slate-200 bg-white text-slate-700'
+                            }`}
+                          >
+                            <span
+                              className="h-3 w-3 rounded-sm border border-slate-300"
+                              style={
+                                bg.value === 'transparent'
+                                  ? {
+                                      backgroundImage:
+                                        'linear-gradient(45deg, #cbd5e1 25%, transparent 25%), linear-gradient(-45deg, #cbd5e1 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #cbd5e1 75%), linear-gradient(-45deg, transparent 75%, #cbd5e1 75%)',
+                                      backgroundSize: '6px 6px',
+                                    }
+                                  : { backgroundColor: bg.value }
+                              }
+                            />
+                            <span>{bg.label}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        {(
+                          [
+                            { key: 'brightness', label: 'Brightness', min: -60, max: 60 },
+                            { key: 'contrast', label: 'Contrast', min: -60, max: 60 },
+                            { key: 'saturation', label: 'Saturation', min: -100, max: 80 },
+                            { key: 'sharpness', label: 'Sharpness', min: 0, max: 100 },
+                            { key: 'shadowRemoval', label: 'Shadow Lift', min: 0, max: 100 },
+                          ] as const
+                        ).map((ctrl) => (
+                          <div key={ctrl.key}>
+                            <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+                              <span>{ctrl.label}</span>
+                              <span className="font-mono-tabular font-semibold text-slate-800">
+                                {activePage.adjustments[ctrl.key]}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={ctrl.min}
+                              max={ctrl.max}
+                              value={activePage.adjustments[ctrl.key]}
+                              aria-label={`Mobile ${ctrl.label}`}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
+                                updateActivePage((p) => ({ ...p, adjustments: nextAdj }));
+                              }}
+                              onMouseUp={(e) => {
+                                const val = Number((e.target as HTMLInputElement).value);
+                                const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
+                                reprocessAndUpdatePage(
+                                  activePage,
+                                  activePage.filter,
+                                  nextAdj,
+                                  activePage.rotation,
+                                  activePage.flipH
+                                );
+                              }}
+                              onTouchEnd={(e) => {
+                                const val = Number((e.target as HTMLInputElement).value);
+                                const nextAdj = { ...activePage.adjustments, [ctrl.key]: val };
+                                reprocessAndUpdatePage(
+                                  activePage,
+                                  activePage.filter,
+                                  nextAdj,
+                                  activePage.rotation,
+                                  activePage.flipH
+                                );
+                              }}
+                              className="studio-slider w-full"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ULTRA-COMPACT TABBED MARKUP PANEL ON MOBILE */}
+              {mobilePanel === 'markup' && (
+                <div className="flex flex-col gap-2">
                   {selectedAnn && (
                     <OverlayPropertiesBar
                       compact
@@ -3194,97 +3270,164 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     />
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSignatureModalOpen(true)}
-                      className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-teal-600 text-xs font-semibold text-white cursor-pointer"
-                    >
-                      <PenTool className="h-4 w-4" aria-hidden="true" />
-                      <span>Add Signature</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addTextStamp()}
-                      className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-slate-900 text-xs font-semibold text-white cursor-pointer"
-                    >
-                      <Type className="h-4 w-4" aria-hidden="true" />
-                      <span>Add Text</span>
-                    </button>
+                  {/* Compact Sub-Tab Strip: Sign | Text | Shapes | Draw */}
+                  <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1">
+                    {(
+                      [
+                        { id: 'sign', label: 'Sign' },
+                        { id: 'text', label: 'Text' },
+                        { id: 'shapes', label: 'Shapes' },
+                        { id: 'draw', label: 'Draw' },
+                      ] as const
+                    ).map((sub) => (
+                      <button
+                        key={sub.id}
+                        type="button"
+                        onClick={() => {
+                          setMobileMarkupSection(sub.id);
+                          if (sub.id !== 'draw') setDrawTool('none');
+                        }}
+                        className={`rounded-lg py-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
+                          mobileMarkupSection === sub.id
+                            ? 'bg-white text-teal-800 shadow-2xs'
+                            : 'text-slate-600'
+                        }`}
+                      >
+                        {sub.label}
+                      </button>
+                    ))}
                   </div>
 
-                  {savedSignatures.length > 0 && (
+                  {mobileMarkupSection === 'sign' && (
                     <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSignatureModalOpen(true)}
+                        className="inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-xl bg-teal-600 px-3 text-xs font-semibold text-white cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>New Signature</span>
+                      </button>
                       {savedSignatures.map((sig) => (
                         <button
                           key={sig.id}
                           type="button"
                           onClick={() => placeSignature(sig)}
-                          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-800"
+                          className="flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-800 cursor-pointer"
                         >
-                          <img src={sig.dataUrl} alt={sig.label} className="h-6 w-12 object-contain" />
+                          <img src={sig.dataUrl} alt={sig.label} className="h-5 w-10 object-contain" />
                           <span>+ {sig.label}</span>
                         </button>
                       ))}
                     </div>
                   )}
 
-                  <div className="grid grid-cols-4 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => addRedactionBox('#09090b')}
-                      className="flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-slate-200 text-[11px] font-medium text-slate-800"
-                    >
-                      <Square className="h-3 w-3 fill-zinc-900" aria-hidden="true" />
-                      <span>Redact</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addRedactionBox('#ffffff')}
-                      className="flex min-h-[42px] items-center justify-center gap-1 rounded-xl border border-slate-200 text-[11px] font-medium text-slate-800"
-                    >
-                      <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Erase</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDrawTool((t) => (t === 'highlighter' ? 'none' : 'highlighter'))
-                      }
-                      className={`flex min-h-[42px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium ${
-                        drawTool === 'highlighter'
-                          ? 'border-teal-600 bg-teal-50 text-teal-900'
-                          : 'border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <Highlighter className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Hi-lite</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'))}
-                      className={`flex min-h-[42px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium ${
-                        drawTool === 'pen'
-                          ? 'border-teal-600 bg-teal-50 text-teal-900'
-                          : 'border-slate-200 text-slate-700'
-                      }`}
-                    >
-                      <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>Pen</span>
-                    </button>
-                  </div>
+                  {mobileMarkupSection === 'text' && (
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={newTextInput}
+                        onChange={(e) => setNewTextInput(e.target.value)}
+                        aria-label="Mobile stamp text"
+                        className="min-h-[38px] flex-1 rounded-xl border border-slate-200 px-2.5 text-xs text-slate-900 focus:border-teal-600 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addTextStamp()}
+                        className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer"
+                      >
+                        <Type className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Add</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {mobileMarkupSection === 'shapes' && (
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {(
+                        [
+                          { id: 'rect', label: 'Box', icon: Square },
+                          { id: 'circle', label: 'Circle', icon: Circle },
+                          { id: 'arrow', label: 'Arrow', icon: ArrowRight },
+                          { id: 'line', label: 'Line', icon: Slash },
+                          { id: 'check', label: 'Check', icon: Check },
+                        ] as const
+                      ).map((s) => {
+                        const Icon = s.icon;
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            data-testid={`mobile-add-shape-${s.id}`}
+                            onClick={() => addShapeAnnotation(s.id)}
+                            className="flex min-h-[42px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white text-[10px] font-semibold text-slate-800 hover:bg-teal-50 cursor-pointer"
+                          >
+                            <Icon className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                            <span>{s.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {mobileMarkupSection === 'draw' && (
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => addRedactionBox('#09090b')}
+                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-800 cursor-pointer"
+                      >
+                        <Square className="h-3 w-3 fill-zinc-900" aria-hidden="true" />
+                        <span>Redact</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addRedactionBox('#ffffff')}
+                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-800 cursor-pointer"
+                      >
+                        <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Erase</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDrawTool((t) => (t === 'highlighter' ? 'none' : 'highlighter'))
+                        }
+                        className={`flex min-h-[38px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium cursor-pointer ${
+                          drawTool === 'highlighter'
+                            ? 'border-teal-600 bg-teal-50 text-teal-900'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
+                      >
+                        <Highlighter className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Hi-lite</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'))}
+                        className={`flex min-h-[38px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium cursor-pointer ${
+                          drawTool === 'pen'
+                            ? 'border-teal-600 bg-teal-50 text-teal-900'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
+                      >
+                        <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Pen</span>
+                      </button>
+                    </div>
+                  )}
 
                   {activePage.annotations.length > 0 && (
-                    <div className="flex items-center justify-between pt-0.5 text-xs">
+                    <div className="flex items-center justify-between pt-0.5 text-[11px]">
                       <span className="text-slate-500">
                         {activePage.annotations.length} overlay(s)
                       </span>
                       <button
                         type="button"
                         onClick={undoLastAnnotation}
-                        className="inline-flex items-center gap-1 font-medium text-slate-700"
+                        className="inline-flex items-center gap-1 font-medium text-slate-700 cursor-pointer"
                       >
-                        <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Undo2 className="h-3 w-3" aria-hidden="true" />
                         <span>Undo Last</span>
                       </button>
                     </div>
@@ -3294,7 +3437,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
               {mobilePanel === 'watermark' && (
                 <div className="flex flex-col gap-3">
-                  <label className="flex min-h-[44px] items-center justify-between rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-800">
+                  <label className="flex min-h-[42px] items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-800">
                     <span>Enable Watermark</span>
                     <input
                       type="checkbox"
@@ -3308,10 +3451,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     value={activePage.watermark.text}
                     onChange={(e) => updateWatermark({ text: e.target.value })}
                     aria-label="Mobile watermark text"
-                    className="min-h-[44px] w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-900"
+                    className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-600">Color</span>
+                    <span className="text-xs font-medium text-slate-600">Color</span>
                     <div className="flex items-center gap-2">
                       {WATERMARK_COLORS.map((hex) => (
                         <button
@@ -3320,10 +3463,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           onClick={() => updateWatermark({ color: hex })}
                           aria-label={`Mobile watermark color ${hex}`}
                           style={{ backgroundColor: hex }}
-                          className={`h-6 w-6 rounded-full border-2 ${
+                          className={`h-6 w-6 rounded-full border-2 cursor-pointer ${
                             activePage.watermark.color === hex
-                              ? 'border-teal-600'
-                              : 'border-white'
+                              ? 'border-teal-600 ring-2 ring-teal-500/25'
+                              : 'border-slate-200'
                           }`}
                         />
                       ))}
@@ -3334,289 +3477,259 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       type="button"
                       data-testid="mobile-apply-watermark-all"
                       onClick={handleApplyWatermarkAllPages}
-                      className="min-h-[42px] rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800"
+                      className="min-h-[40px] rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800"
                     >
                       Apply Watermark to All Pages
                     </button>
                   )}
                 </div>
               )}
-
-              {mobilePanel === 'ocr' && (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={ocrLang}
-                      onChange={(e) => setOcrLang(e.target.value)}
-                      aria-label="OCR Language"
-                      className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs text-slate-800 focus:border-teal-600 focus:outline-none"
-                    >
-                      <option value="eng">English</option>
-                      <option value="spa">Spanish</option>
-                      <option value="fra">French</option>
-                      <option value="deu">German</option>
-                    </select>
-                    <button
-                      type="button"
-                      disabled={ocrRunning}
-                      onClick={handleRunOcr}
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
-                    >
-                      <ScanText className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>{ocrRunning ? `${ocrProgress}%` : 'Extract Page Text'}</span>
-                    </button>
-                  </div>
-
-                  {ocrRunning && (
-                    <div className="rounded-lg bg-slate-50 p-2.5">
-                      <div className="mb-1 flex justify-between text-[11px] text-slate-600">
-                        <span className="truncate">{ocrStatus}</span>
-                        <span className="font-mono-tabular">{ocrProgress}%</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full bg-teal-600 transition-all" style={{ width: `${ocrProgress}%` }} />
-                      </div>
-                    </div>
-                  )}
-
-                  {ocrError && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
-                      {ocrError}
-                    </div>
-                  )}
-
-                  <textarea
-                    rows={5}
-                    value={activePage.ocrText}
-                    onChange={(e) => updateActivePage((p) => ({ ...p, ocrText: e.target.value }))}
-                    placeholder="Recognized text appears here..."
-                    className="w-full rounded-lg border border-slate-200 p-3 text-xs leading-relaxed text-slate-800 focus:border-teal-600 focus:outline-none"
-                  />
-
-                  {activePage.ocrText && (
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await navigator.clipboard.writeText(activePage.ocrText);
-                          setCopiedOcr(true);
-                          window.setTimeout(() => setCopiedOcr(false), 1500);
-                        }}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        {copiedOcr ? (
-                          <>
-                            <Check className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
-                            <span>Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span>Copy</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'txt')}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>.TXT</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => exportOcrTextFile(`${document.title}_p${safeIdx + 1}`, activePage.ocrText, 'doc')}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                      >
-                        <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>.DOC</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           )}
 
-          {/* OLD BITSCAN MOBILE EDIT DOCK — dark bar with icon + uppercase label and green Save check */}
-          <div className="bg-slate-900 border-t border-slate-800 pb-safe">
-            <div className="flex items-center justify-between px-4 py-3">
+          {/* Cohesive 6-Item Light-Theme Mobile Edit Action Dock (Crop & Rotate merged!) */}
+          <div className="bg-white/95 pb-safe">
+            <div className="grid grid-cols-6 items-center px-1.5 py-1.5 gap-0.5">
               <button
                 type="button"
+                data-testid="mobile-dock-crop"
                 onClick={() => {
                   haptics.tap();
-                  setRecropQuad(activePage.quad);
-                  setRecropOpen(true);
-                }}
-                className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
-              >
-                <Crop className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">Crop</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleRotate(90)}
-                className="flex flex-col items-center gap-1.5 text-slate-400 hover:text-white transition"
-              >
-                <RotateCw className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">Rotate</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  haptics.tap();
-                  if (mobilePanelOpen && mobilePanel === 'enhance') {
+                  setEditOcrOpen(false);
+                  if (mobilePanelOpen && mobilePanel === 'crop') {
                     setMobilePanelOpen(false);
                   } else {
-                    setMobilePanel('enhance');
+                    setMobilePanel('crop');
+                    setMobileFilterCustomOpen(false);
                     setMobilePanelOpen(true);
                     setDrawTool('none');
                   }
                 }}
-                className={`flex flex-col items-center gap-1.5 transition ${
-                  mobilePanelOpen && mobilePanel === 'enhance'
-                    ? 'text-teal-400'
-                    : 'text-slate-400 hover:text-slate-200'
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                  mobilePanelOpen && mobilePanel === 'crop'
+                    ? 'bg-teal-50 text-teal-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <Wand2 className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">Filter</span>
+                <Crop className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="text-[10px] font-semibold">Crop</span>
               </button>
 
               <button
                 type="button"
+                data-testid="mobile-dock-filter"
                 onClick={() => {
                   haptics.tap();
+                  setEditOcrOpen(false);
+                  if (mobilePanelOpen && mobilePanel === 'enhance') {
+                    setMobilePanelOpen(false);
+                    setMobileFilterCustomOpen(false);
+                  } else {
+                    setMobilePanel('enhance');
+                    setMobileFilterCustomOpen(false);
+                    setMobilePanelOpen(true);
+                    setDrawTool('none');
+                  }
+                }}
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                  mobilePanelOpen && mobilePanel === 'enhance'
+                    ? 'bg-teal-50 text-teal-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <Wand2 className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="text-[10px] font-semibold">Filter</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="mobile-dock-markup"
+                onClick={() => {
+                  haptics.tap();
+                  setEditOcrOpen(false);
                   if (mobilePanelOpen && mobilePanel === 'markup') {
                     setMobilePanelOpen(false);
                   } else {
                     setMobilePanel('markup');
+                    setMobileFilterCustomOpen(false);
                     setMobilePanelOpen(true);
                     setDrawTool('none');
                   }
                 }}
-                className={`flex flex-col items-center gap-1.5 transition ${
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'markup'
-                    ? 'text-teal-400'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-teal-50 text-teal-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <PenTool className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">Markup</span>
+                <PenTool className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="text-[10px] font-semibold">Markup</span>
               </button>
 
               <button
                 type="button"
+                data-testid="mobile-dock-watermark"
                 onClick={() => {
                   haptics.tap();
+                  setEditOcrOpen(false);
                   if (mobilePanelOpen && mobilePanel === 'watermark') {
                     setMobilePanelOpen(false);
                   } else {
                     setMobilePanel('watermark');
+                    setMobileFilterCustomOpen(false);
                     setMobilePanelOpen(true);
                     setDrawTool('none');
                   }
                 }}
-                className={`flex flex-col items-center gap-1.5 transition ${
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'watermark'
-                    ? 'text-teal-400'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-teal-50 text-teal-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
-                data-testid="mobile-dock-watermark"
               >
-                <Stamp className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">Mark</span>
+                <Stamp className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="text-[10px] font-semibold">Mark</span>
               </button>
 
               <button
                 type="button"
+                data-testid="mobile-dock-ocr"
                 onClick={() => {
                   haptics.tap();
-                  if (mobilePanelOpen && mobilePanel === 'ocr') {
-                    setMobilePanelOpen(false);
-                  } else {
-                    setMobilePanel('ocr');
-                    setMobilePanelOpen(true);
-                    if (!activePage.ocrText && !ocrRunning) {
-                      void handleRunOcr();
-                    }
+                  setMobilePanelOpen(false);
+                  setMobileFilterCustomOpen(false);
+                  const next = !editOcrOpen;
+                  setEditOcrOpen(next);
+                  if (next && !activePage.ocrText && !ocrRunning) {
+                    void handleRunOcr();
                   }
                 }}
-                className={`flex flex-col items-center gap-1.5 transition ${
-                  mobilePanelOpen && mobilePanel === 'ocr'
-                    ? 'text-teal-400'
-                    : 'text-slate-400 hover:text-slate-200'
+                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                  editOcrOpen
+                    ? 'bg-teal-50 text-teal-700'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <ScanText className="h-[22px] w-[22px]" aria-hidden="true" />
-                <span className="text-[10px] font-medium uppercase tracking-wider">OCR</span>
+                <ScanText className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="text-[10px] font-semibold">OCR</span>
               </button>
 
               <button
                 type="button"
                 onClick={handleSaveEdits}
-                data-testid="save-edits-btn"
-                className="flex flex-col items-center gap-1 text-green-500 hover:text-green-400 transition"
+                data-testid="mobile-save-edits-btn"
+                className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl bg-teal-600 text-white shadow-xs hover:bg-teal-700 active:scale-95 transition cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center mb-0.5">
-                  <Check className="h-5 w-5" strokeWidth={3} aria-hidden="true" />
-                </div>
-                <span className="text-[10px] font-bold uppercase tracking-wider">Save</span>
+                <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
+                <span className="text-[10px] font-bold">Save</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Inline Re-Crop Modal (ONLY accessible from Edit Mode) */}
+      {/* Redesigned Adjust Perspective Crop Modal (Light, Responsive Mobile + Desktop) */}
       {recropOpen && recropQuad && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Re-crop perspective corners"
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/65 p-0 sm:p-4 backdrop-blur-xs"
+          aria-label="Adjust Perspective Crop"
+          data-testid="adjust-perspective-crop-dialog"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/55 p-0 sm:p-5 backdrop-blur-xs"
         >
-          <div className="flex w-full max-w-4xl flex-col rounded-t-3xl sm:rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden animate-sheet-up pb-safe">
+          <div className="flex w-full max-w-3xl max-h-[92dvh] flex-col rounded-t-3xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-sheet-up">
             <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 sm:hidden" />
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-              <h2 className="text-base font-bold text-slate-900">Adjust Perspective Crop</h2>
+
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+              <button
+                type="button"
+                onClick={() => setRecropOpen(false)}
+                aria-label="Close crop dialog"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+                Adjust Perspective Crop
+              </h2>
+              <button
+                type="button"
+                onClick={() => setRecropQuad(activePage.quad)}
+                className="rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+
+            {/* Canvas Body */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5">
+              <PerspectiveCropCanvas
+                hideTopActions
+                imageSrc={activePage.originalDataUrl}
+                quad={recropQuad}
+                onChange={setRecropQuad}
+                detecting={detectingQuad}
+              />
+            </div>
+
+            {/* Unified Crop Controls + Primary Apply Footer */}
+            <div className="shrink-0 border-t border-slate-200 bg-white px-4 pt-2.5 pb-[max(1.1rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col gap-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={detectingQuad}
+                  onClick={async () => {
+                    haptics.tap();
+                    setDetectingQuad(true);
+                    try {
+                      const detected = await detectCornersFromDataUrl(activePage.originalDataUrl);
+                      setRecropQuad(detected);
+                    } finally {
+                      setDetectingQuad(false);
+                    }
+                  }}
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50 cursor-pointer"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                  <span>{detectingQuad ? 'Detecting...' : 'Auto-Detect'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.tap();
+                    setRecropQuad([
+                      { x: 0.01, y: 0.01 },
+                      { x: 0.99, y: 0.01 },
+                      { x: 0.99, y: 0.99 },
+                      { x: 0.01, y: 0.99 },
+                    ]);
+                  }}
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <Maximize2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                  <span>Full Frame</span>
+                </button>
+              </div>
+
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setRecropOpen(false)}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[46px] rounded-xl border border-slate-200 px-4 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleApplyRecrop}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                  data-testid="apply-recrop-btn"
+                  className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-5 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-teal-700 cursor-pointer"
                 >
-                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Check className="h-4 w-4" aria-hidden="true" />
                   <span>Apply Perspective Crop</span>
                 </button>
               </div>
-            </div>
-            <div className="p-5">
-              <PerspectiveCropCanvas
-                imageSrc={activePage.originalDataUrl}
-                quad={recropQuad}
-                onChange={setRecropQuad}
-                detecting={detectingQuad}
-                onAutoDetect={async () => {
-                  setDetectingQuad(true);
-                  try {
-                    const detected = await detectCornersFromDataUrl(activePage.originalDataUrl);
-                    setRecropQuad(detected);
-                  } finally {
-                    setDetectingQuad(false);
-                  }
-                }}
-              />
             </div>
           </div>
         </div>

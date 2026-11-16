@@ -1,13 +1,18 @@
 import React from 'react';
 import {
+  ArrowRight,
+  Check,
+  Circle,
   CopyPlus,
   Lock,
   Minus,
   Plus,
+  Slash,
+  Square,
   Trash2,
   Unlock,
 } from 'lucide-react';
-import type { AnnotationItem } from '../types/scanner';
+import type { AnnotationItem, ShapeKind } from '../types/scanner';
 import { clamp } from '../utils/cvGeometry';
 import { scaleAnnotationToWidth } from '../utils/annotationHelpers';
 
@@ -21,7 +26,14 @@ interface OverlayPropertiesBarProps {
   compact?: boolean;
 }
 
-const STAMP_COLORS = ['#b91c1c', '#0f172a', '#1d4ed8', '#047857', '#7c3aed'];
+const STAMP_COLORS = ['#b91c1c', '#0f172a', '#1d4ed8', '#047857', '#0f766e'];
+const SHAPE_TYPES: Array<{ id: ShapeKind; label: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'rect', label: 'Box', icon: Square },
+  { id: 'circle', label: 'Circle', icon: Circle },
+  { id: 'arrow', label: 'Arrow', icon: ArrowRight },
+  { id: 'line', label: 'Line', icon: Slash },
+  { id: 'check', label: 'Check', icon: Check },
+];
 
 export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
   annotation,
@@ -41,7 +53,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
     const patch = scaleAnnotationToWidth(
       annotation,
       annotation.width + deltaWidth,
-      annotation.type === 'signature' ? aspectLocked : true
+      annotation.type === 'signature' ? aspectLocked : annotation.type === 'text'
     );
     onUpdate(patch);
   };
@@ -49,59 +61,55 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
   return (
     <div
       data-testid="selected-overlay-controls"
-      className={`rounded-xl border border-teal-500/35 bg-teal-50/60 ${
-        compact ? 'p-2.5' : 'p-3'
-      } flex flex-col gap-2.5`}
+      className={`rounded-xl border border-teal-500/35 bg-teal-50/55 ${
+        compact ? 'p-2.5 gap-2' : 'p-3 gap-2.5'
+      } flex flex-col`}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-bold capitalize text-teal-950">
-          Selected {annotation.type === 'redaction' ? 'Redaction Box' : annotation.type}
+          Edit{' '}
+          {annotation.type === 'redaction'
+            ? 'Redaction'
+            : annotation.type === 'shape'
+              ? `Shape (${annotation.shapeKind || 'rect'})`
+              : annotation.type}
         </span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={onDuplicate}
             aria-label="Duplicate selected overlay"
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
           >
-            <CopyPlus className="h-3.5 w-3.5" aria-hidden="true" />
+            <CopyPlus className="h-3 w-3" aria-hidden="true" />
             <span>Copy</span>
           </button>
           <button
             type="button"
             onClick={onDelete}
             aria-label="Remove selected overlay"
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 text-[11px] font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 text-[11px] font-medium text-red-600 hover:bg-red-50 cursor-pointer"
           >
-            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <Trash2 className="h-3 w-3" aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {/* Text Content & Color Editor */}
       {annotation.type === 'text' && (
-        <>
-          <div>
-            <label
-              htmlFor={`edit-ann-text-${annotation.id}`}
-              className="block text-[11px] font-medium text-slate-600 mb-1"
-            >
-              Edit Text
-            </label>
-            <input
-              id={`edit-ann-text-${annotation.id}`}
-              type="text"
-              value={annotation.text || ''}
-              onChange={(e) => onUpdate({ text: e.target.value })}
-              placeholder="Enter text..."
-              aria-label="Edit selected text"
-              className="w-full min-h-[38px] rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-900 focus:border-teal-600 focus:outline-none"
-            />
-          </div>
+        <div className="flex flex-col gap-2">
+          <input
+            id={`edit-ann-text-${annotation.id}`}
+            type="text"
+            value={annotation.text || ''}
+            onChange={(e) => onUpdate({ text: e.target.value })}
+            placeholder="Enter text..."
+            aria-label="Edit selected text"
+            className="w-full min-h-[36px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-medium text-slate-900 focus:border-teal-600 focus:outline-none"
+          />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-slate-600 mr-0.5">Ink</span>
               {STAMP_COLORS.map((hex) => (
                 <button
                   key={hex}
@@ -109,7 +117,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                   onClick={() => onUpdate({ color: hex })}
                   aria-label={`Set text color ${hex}`}
                   style={{ backgroundColor: hex }}
-                  className={`h-6 w-6 rounded-full border-2 cursor-pointer transition-transform ${
+                  className={`h-5 w-5 rounded-full border-2 cursor-pointer transition-transform ${
                     (annotation.color || '#b91c1c') === hex
                       ? 'border-slate-900 scale-110'
                       : 'border-white'
@@ -127,11 +135,11 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                     fontSize: clamp((annotation.fontSize ?? 0.032) - 0.005, 0.014, 0.14),
                   })
                 }
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <Minus className="h-3.5 w-3.5" aria-hidden="true" />
+                <Minus className="h-3 w-3" aria-hidden="true" />
               </button>
-              <span className="min-w-[40px] text-center font-mono-tabular text-[11px] font-semibold text-slate-800">
+              <span className="min-w-[36px] text-center font-mono-tabular text-[11px] font-semibold text-slate-800">
                 {fontScalePct}%
               </span>
               <button
@@ -142,20 +150,85 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                     fontSize: clamp((annotation.fontSize ?? 0.032) + 0.005, 0.014, 0.14),
                   })
                 }
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <Plus className="h-3 w-3" aria-hidden="true" />
               </button>
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {/* Width / Size Slider + Stepper (All non-stroke overlays) */}
+      {/* Shape Controls: Kind + Stroke Color + Thickness */}
+      {annotation.type === 'shape' && (
+        <div className="flex flex-col gap-2">
+          <div className="grid grid-cols-5 gap-1">
+            {SHAPE_TYPES.map((s) => {
+              const Icon = s.icon;
+              const active = (annotation.shapeKind || 'rect') === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onUpdate({ shapeKind: s.id })}
+                  className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border py-1 text-[10px] font-semibold cursor-pointer ${
+                    active
+                      ? 'border-teal-600 bg-white text-teal-800 shadow-2xs'
+                      : 'border-slate-200 bg-white/70 text-slate-600'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              {STAMP_COLORS.map((hex) => (
+                <button
+                  key={hex}
+                  type="button"
+                  onClick={() => onUpdate({ color: hex })}
+                  aria-label={`Set shape color ${hex}`}
+                  style={{ backgroundColor: hex }}
+                  className={`h-5 w-5 rounded-full border-2 cursor-pointer ${
+                    (annotation.color || '#0f766e') === hex
+                      ? 'border-slate-900 scale-110'
+                      : 'border-white'
+                  }`}
+                />
+              ))}
+            </div>
+            {(annotation.shapeKind === 'rect' || annotation.shapeKind === 'circle' || !annotation.shapeKind) && (
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdate({
+                    fillColor:
+                      annotation.fillColor && annotation.fillColor !== 'transparent'
+                        ? 'transparent'
+                        : `${annotation.color || '#0f766e'}22`,
+                  })
+                }
+                className={`rounded-lg border px-2 py-1 text-[10px] font-semibold cursor-pointer ${
+                  annotation.fillColor && annotation.fillColor !== 'transparent'
+                    ? 'border-teal-600 bg-teal-600 text-white'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}
+              >
+                {annotation.fillColor && annotation.fillColor !== 'transparent' ? 'Filled' : 'Outline'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Static-bounds Width Slider + Stepper (fixed max=92 so moving x never shifts slider thumb!) */}
       <div>
         <div className="mb-1 flex items-center justify-between text-[11px] text-slate-700">
           <div className="flex items-center gap-1.5">
-            <span>{annotation.type === 'signature' ? 'Signature Width' : 'Box Width'}</span>
+            <span>{annotation.type === 'signature' ? 'Size' : 'Width'}</span>
             {annotation.type === 'signature' && (
               <button
                 type="button"
@@ -168,7 +241,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 ) : (
                   <Unlock className="h-2.5 w-2.5 text-amber-600" aria-hidden="true" />
                 )}
-                <span>{aspectLocked ? 'Ratio' : 'Free'}</span>
+                <span>{aspectLocked ? 'Lock' : 'Free'}</span>
               </button>
             )}
           </div>
@@ -177,7 +250,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
               type="button"
               aria-label="Decrease overlay width"
               onClick={() => nudgeSize(-0.06)}
-              className="flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
               <Minus className="h-3 w-3" aria-hidden="true" />
             </button>
@@ -188,7 +261,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
               type="button"
               aria-label="Increase overlay width"
               onClick={() => nudgeSize(0.06)}
-              className="flex h-7 w-7 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
               <Plus className="h-3 w-3" aria-hidden="true" />
             </button>
@@ -197,9 +270,10 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
         <input
           type="range"
           min={8}
-          max={Math.min(95, Math.round((0.98 - annotation.x) * 100))}
-          value={widthPct}
+          max={92}
+          value={clamp(widthPct, 8, 92)}
           aria-label="Selected overlay width percentage"
+          data-testid="overlay-width-slider"
           onChange={(e) => {
             const targetW = Number(e.target.value) / 100;
             onUpdate(
@@ -226,21 +300,23 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
               <input
                 type="range"
                 min={4}
-                max={Math.min(70, Math.round((0.98 - annotation.y) * 100))}
-                value={heightPct}
+                max={80}
+                value={clamp(heightPct, 4, 80)}
                 aria-label="Signature height percentage"
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextH = clamp(Number(e.target.value) / 100, 0.03, 0.8);
                   onUpdate({
-                    height: clamp(Number(e.target.value) / 100, 0.03, 0.98 - annotation.y),
-                  })
-                }
+                    height: nextH,
+                    y: clamp(annotation.y, 0.01, Math.max(0.01, 0.99 - nextH)),
+                  });
+                }}
                 className="studio-slider w-full"
               />
             </div>
           )}
           <div>
             <div className="mb-1 flex justify-between text-[11px] text-slate-600">
-              <span>Ink Opacity</span>
+              <span>Opacity</span>
               <span className="font-mono-tabular">{opacityPct}%</span>
             </div>
             <input
@@ -256,8 +332,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
         </div>
       )}
 
-      {/* Redaction Height & Blackout/White-out toggle */}
-      {annotation.type === 'redaction' && (
+      {/* Shape Height & Redaction Height + Toggle */}
+      {(annotation.type === 'redaction' || annotation.type === 'shape') && (
         <div className="flex flex-col gap-2">
           <div>
             <div className="mb-1 flex justify-between text-[11px] text-slate-600">
@@ -267,41 +343,45 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
             <input
               type="range"
               min={3}
-              max={Math.min(60, Math.round((0.98 - annotation.y) * 100))}
-              value={heightPct}
-              aria-label="Redaction height percentage"
-              onChange={(e) =>
+              max={75}
+              value={clamp(heightPct, 3, 75)}
+              aria-label="Box height percentage"
+              onChange={(e) => {
+                const nextH = clamp(Number(e.target.value) / 100, 0.03, 0.75);
                 onUpdate({
-                  height: clamp(Number(e.target.value) / 100, 0.03, 0.98 - annotation.y),
-                })
-              }
+                  height: nextH,
+                  y: clamp(annotation.y, 0.01, Math.max(0.01, 0.99 - nextH)),
+                });
+              }}
               className="studio-slider w-full"
             />
           </div>
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => onUpdate({ color: '#09090b' })}
-              className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
-                (annotation.color || '#09090b') === '#09090b'
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-700'
-              }`}
-            >
-              Blackout Redact
-            </button>
-            <button
-              type="button"
-              onClick={() => onUpdate({ color: '#ffffff' })}
-              className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
-                annotation.color === '#ffffff'
-                  ? 'border-teal-600 bg-teal-50 text-teal-900'
-                  : 'border-slate-200 bg-white text-slate-700'
-              }`}
-            >
-              White-Out Eraser
-            </button>
-          </div>
+          {annotation.type === 'redaction' && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                type="button"
+                onClick={() => onUpdate({ color: '#09090b' })}
+                className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
+                  (annotation.color || '#09090b') === '#09090b'
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}
+              >
+                Blackout
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdate({ color: '#ffffff' })}
+                className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
+                  annotation.color === '#ffffff'
+                    ? 'border-teal-600 bg-teal-50 text-teal-900'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}
+              >
+                White-Out
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
