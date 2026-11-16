@@ -26,6 +26,8 @@ interface ExportModalProps {
   initialSelectedPages?: number[];
   defaultPaperSize?: PdfPaperSize;
   defaultQuality?: PdfQuality;
+  defaultExportFormat?: ExportFormat;
+  defaultFilenamePrefix?: string;
   defaultSearchablePdf?: boolean;
   onClose: () => void;
 }
@@ -36,11 +38,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   initialSelectedPages,
   defaultPaperSize = 'a4',
   defaultQuality = 'high',
+  defaultExportFormat = 'pdf',
+  defaultFilenamePrefix = '',
   defaultSearchablePdf = true,
   onClose,
 }) => {
   const haptics = useHaptics();
-  const [format, setFormat] = useState<ExportFormat>('pdf');
+  const [format, setFormat] = useState<ExportFormat>(defaultExportFormat);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [paperSize, setPaperSize] = useState<PdfPaperSize>(defaultPaperSize);
   const [orientation, setOrientation] = useState<PdfOrientation>('auto');
@@ -58,7 +62,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
   useEffect(() => {
     if (!document) return;
-    setFilename(document.title || 'scanned-document');
+    const baseName = document.title || `${defaultFilenamePrefix}document`;
+    setFilename(baseName);
     setPaperSize(defaultPaperSize);
     setQuality(defaultQuality);
     setSearchablePdf(defaultSearchablePdf);
@@ -67,8 +72,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     } else {
       setSelectedIndices(document.pages.map((_, idx) => idx));
     }
-    setFormat(document.folder === 'signatures' ? 'image' : 'pdf');
-  }, [document, initialSelectedPages, defaultPaperSize, defaultQuality, defaultSearchablePdf]);
+    setFormat(document.folder === 'signatures' ? 'image' : defaultExportFormat);
+  }, [
+    document,
+    initialSelectedPages,
+    defaultPaperSize,
+    defaultQuality,
+    defaultExportFormat,
+    defaultFilenamePrefix,
+    defaultSearchablePdf,
+  ]);
 
   if (!document) return null;
 

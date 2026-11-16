@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   Camera,
   Check,
+  ChevronRight,
   Copy,
   CreditCard,
   Download,
@@ -17,10 +18,12 @@ import {
   PenTool,
   Plus,
   ScanText,
+  Search,
   Sparkles,
   Star,
   Trash2,
   Upload,
+  X,
 } from 'lucide-react';
 import type { ScanDocument } from '../types/scanner';
 import { useHaptics } from '../hooks/useHaptics';
@@ -81,6 +84,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
   const haptics = useHaptics();
   const [activeTool, setActiveTool] = useState<ToolId | null>(initialToolId);
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'pdf' | 'photo' | 'smart'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Shared Project Page Picker Modal state for picking existing scans into any tool
   const [projectPickerTarget, setProjectPickerTarget] = useState<
@@ -141,10 +145,23 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
   const ocrInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
 
+  const pinnedTools = useMemo(
+    () => TOOLS_CATALOG.filter((t) => favoriteTools.includes(t.id)),
+    [favoriteTools]
+  );
+
   const filteredTools = useMemo(() => {
-    if (categoryFilter === 'all') return TOOLS_CATALOG;
-    return TOOLS_CATALOG.filter((t) => t.category === categoryFilter);
-  }, [categoryFilter]);
+    const q = searchQuery.trim().toLowerCase();
+    return TOOLS_CATALOG.filter((t) => {
+      if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+      if (!q) return true;
+      return (
+        t.title.toLowerCase().includes(q) ||
+        t.shortLabel.toLowerCase().includes(q) ||
+        t.description.toLowerCase().includes(q)
+      );
+    });
+  }, [categoryFilter, searchQuery]);
 
   const openTool = (id: ToolId) => {
     haptics.tap();
@@ -204,62 +221,107 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
     window.document.body.removeChild(a);
   };
 
-  const renderToolCard = (tool: ToolCatalogItem) => {
+  const renderDesktopToolCard = (tool: ToolCatalogItem) => {
+    const Icon = TOOL_ICON_MAP[tool.id];
+    const isFav = favoriteTools.includes(tool.id);
+
+    return (
+      <article
+        key={tool.id}
+        data-testid={`tool-card-${tool.id}`}
+        className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:border-teal-500/60 hover:shadow-sm"
+      >
+        <button
+          type="button"
+          onClick={() => openTool(tool.id)}
+          className="flex flex-1 flex-col items-start text-left cursor-pointer"
+        >
+          <div className="flex w-full items-start justify-between gap-2">
+            <span
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${tool.accentClass}`}
+            >
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+          </div>
+          <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-teal-700">
+            {tool.title}
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500 line-clamp-2">
+            {tool.description}
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            haptics.tap();
+            onToggleFavoriteTool(tool.id);
+          }}
+          data-testid={`tool-fav-${tool.id}`}
+          aria-label={isFav ? `Unfavorite ${tool.title}` : `Favorite ${tool.title}`}
+          aria-pressed={isFav}
+          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-amber-500 cursor-pointer"
+        >
+          <Star
+            className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`}
+            aria-hidden="true"
+          />
+        </button>
+      </article>
+    );
+  };
+
+  const renderMobileToolRow = (tool: ToolCatalogItem) => {
     const Icon = TOOL_ICON_MAP[tool.id];
     const isFav = favoriteTools.includes(tool.id);
 
     return (
       <div
         key={tool.id}
-        data-testid={`tool-card-${tool.id}`}
-        className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:border-teal-500/50"
+        data-testid={`tool-mobile-row-${tool.id}`}
+        className="flex min-h-[68px] items-center gap-2 px-3 py-2.5 transition-colors active:bg-slate-50"
       >
-        <div className="flex items-start justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => openTool(tool.id)}
-            className="flex flex-1 items-start gap-3 text-left cursor-pointer"
+        <button
+          type="button"
+          onClick={() => openTool(tool.id)}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left cursor-pointer"
+        >
+          <span
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${tool.accentClass}`}
           >
-            <span
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${tool.accentClass}`}
-            >
-              <Icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1 pr-6">
-              <h3 className="text-sm font-bold text-slate-900 group-hover:text-teal-700">
-                {tool.title}
-              </h3>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500 line-clamp-2">
-                {tool.description}
-              </p>
-            </div>
-          </button>
+            <Icon className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold text-slate-900">{tool.title}</div>
+            <div className="truncate text-xs text-slate-500">{tool.description}</div>
+          </div>
+        </button>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              haptics.tap();
-              onToggleFavoriteTool(tool.id);
-            }}
-            data-testid={`tool-fav-${tool.id}`}
-            aria-label={isFav ? `Unfavorite ${tool.title}` : `Favorite ${tool.title}`}
-            aria-pressed={isFav}
-            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-amber-500 cursor-pointer"
-          >
-            <Star
-              className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            haptics.tap();
+            onToggleFavoriteTool(tool.id);
+          }}
+          data-testid={`tool-mobile-fav-${tool.id}`}
+          aria-label={isFav ? `Unfavorite ${tool.title}` : `Favorite ${tool.title}`}
+          aria-pressed={isFav}
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 active:scale-95 cursor-pointer"
+        >
+          <Star
+            className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`}
+            aria-hidden="true"
+          />
+        </button>
 
         <button
           type="button"
           onClick={() => openTool(tool.id)}
-          className="mt-3 inline-flex w-full min-h-[38px] items-center justify-center rounded-xl bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-teal-50 hover:text-teal-800 transition-colors cursor-pointer"
+          aria-label={`Open ${tool.title}`}
+          className="flex h-11 w-7 shrink-0 items-center justify-center text-slate-400 cursor-pointer"
         >
-          Open Tool
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
     );
@@ -390,15 +452,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
       />
 
       {activeTool === null ? (
-        /* TOOLS HUB DIRECTORY */
-        <>
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        /* REDESIGNED MOBILE-FIRST TOOLS HUB DIRECTORY */
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                Document Tools Space
+                Document Tools
               </h1>
               <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
-                Convert PDFs, create passport photos, merge files, extract text, or star tools to pin them on Home.
+                Fast on-device converters, ID makers, OCR, signatures &amp; slideshows.
               </p>
             </div>
 
@@ -412,38 +474,130 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
             </button>
           </div>
 
-          {/* Category Filter Chips */}
-          <div className="mb-5 flex items-center gap-1.5 overflow-x-auto pb-1">
-            {(
-              [
-                { id: 'all', label: 'All Tools' },
-                { id: 'pdf', label: 'PDF Tools' },
-                { id: 'photo', label: 'Photo & ID' },
-                { id: 'smart', label: 'OCR, Sign & Video' },
-              ] as const
-            ).map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  haptics.tap();
-                  setCategoryFilter(cat.id);
-                }}
-                className={`min-h-[40px] rounded-xl px-3.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
-                  categoryFilter === cat.id
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+          {/* Search & Segmented Category Filter */}
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Find PDF, ID, OCR, video..."
+                aria-label="Search tools"
+                data-testid="tools-search-input"
+                className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear tool search"
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {(
+                [
+                  { id: 'all', label: 'All' },
+                  { id: 'pdf', label: 'PDF' },
+                  { id: 'photo', label: 'Photo & ID' },
+                  { id: 'smart', label: 'Smart Tools' },
+                ] as const
+              ).map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    haptics.tap();
+                    setCategoryFilter(cat.id);
+                  }}
+                  className={`min-h-[40px] rounded-xl px-3.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                    categoryFilter === cat.id
+                      ? 'bg-slate-900 text-white'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4">
-            {filteredTools.map(renderToolCard)}
-          </div>
-        </>
+          {/* Pinned Favorites Quick-Access Dock (Compact Horizontal Rail) */}
+          {pinnedTools.length > 0 && categoryFilter === 'all' && !searchQuery.trim() && (
+            <section aria-label="Pinned tools" className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Pinned Quick Access
+                </h2>
+                <span className="text-[11px] font-medium text-slate-400">
+                  Tap star to pin/unpin
+                </span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                {pinnedTools.map((tool) => {
+                  const Icon = TOOL_ICON_MAP[tool.id];
+                  return (
+                    <button
+                      key={tool.id}
+                      type="button"
+                      onClick={() => openTool(tool.id)}
+                      className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 active:scale-[0.98] transition-all cursor-pointer"
+                    >
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${tool.accentClass}`}
+                      >
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <span className="text-xs font-semibold text-slate-800 whitespace-nowrap">
+                        {tool.shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {filteredTools.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center px-4">
+              <Search className="h-8 w-8 text-slate-300 mb-2" aria-hidden="true" />
+              <p className="text-sm font-semibold text-slate-700">No matching tools</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setCategoryFilter('all');
+                }}
+                className="mt-2 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+              >
+                Show all tools
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Native Mobile Compact Action List */}
+              <div
+                data-testid="tools-mobile-list"
+                className="flex flex-col divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white sm:hidden"
+              >
+                {filteredTools.map(renderMobileToolRow)}
+              </div>
+
+              {/* Desktop Multi-Column Grid */}
+              <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-4">
+                {filteredTools.map(renderDesktopToolCard)}
+              </div>
+            </>
+          )}
+        </div>
       ) : (
         /* FOCUSED TOOL WORKSPACE */
         <div className="flex flex-col gap-5">

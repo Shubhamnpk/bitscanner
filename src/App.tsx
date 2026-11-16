@@ -30,6 +30,7 @@ import { TopBar } from './components/TopBar';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { LibraryView } from './components/LibraryView';
 import { ProjectDetailsView } from './components/ProjectDetailsView';
+import { ProjectEditModal } from './components/ProjectEditModal';
 import { DocumentEditor } from './components/DocumentEditor';
 import { CameraScanner, type CameraScanMode } from './components/CameraScanner';
 import { IdCardStudio } from './components/IdCardStudio';
@@ -39,6 +40,9 @@ import { SignatureModal, type SignatureDocPayload } from './components/Signature
 import { ToolsView } from './components/ToolsView';
 import { ProfileView } from './components/ProfileView';
 import { SettingsView } from './components/SettingsView';
+import { OnboardingFlow } from './components/OnboardingFlow';
+import { InfoPagesView, type InfoPageId } from './components/InfoPagesView';
+import { OfflineIndicator } from './components/PWAInstallBanner';
 import {
   loadImage,
   perspectiveDewarp,
@@ -62,6 +66,9 @@ export default function App() {
   const [editorSessionId, setEditorSessionId] = useState(0);
   const [returnToProjectOnCommit, setReturnToProjectOnCommit] = useState(false);
 
+  const [editingProjectDoc, setEditingProjectDoc] = useState<ScanDocument | null>(null);
+  const [onboardingReplayOpen, setOnboardingReplayOpen] = useState(false);
+
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerInitialMode, setScannerInitialMode] = useState<CameraScanMode>('docs');
   const [scannerInitialSource, setScannerInitialSource] = useState<'camera' | 'samples'>('camera');
@@ -81,6 +88,14 @@ export default function App() {
 
   const [librarySignatureModalOpen, setLibrarySignatureModalOpen] = useState(false);
   const [kotlinModalOpen, setKotlinModalOpen] = useState(false);
+
+  const isAutostartBypass =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('autostart') === '1';
+
+  const shouldShowOnboarding =
+    !loading &&
+    (onboardingReplayOpen || (!appSettings.hasCompletedOnboarding && !isAutostartBypass));
 
   useEffect(() => {
     let mounted = true;
@@ -444,16 +459,25 @@ export default function App() {
     }
   };
 
+  const isInfoView =
+    activeView === 'about' ||
+    activeView === 'release_notes' ||
+    activeView === 'privacy' ||
+    activeView === 'help';
+
   const hideMainChrome =
-    activeView === 'editor' || activeView === 'project' || activeView === 'settings';
+    activeView === 'editor' ||
+    activeView === 'project' ||
+    activeView === 'settings' ||
+    isInfoView;
 
   return (
     <div
-      className={
+      className={`${
         activeView === 'editor'
           ? 'flex h-[100dvh] flex-col overflow-hidden bg-slate-50 text-slate-900'
           : 'flex min-h-[100dvh] flex-col bg-slate-50 text-slate-900'
-      }
+      }${appSettings.reduceMotion ? ' motion-reduce' : ''}`}
     >
       <TopBar
         activeView={activeView}
@@ -461,6 +485,8 @@ export default function App() {
         onNavigate={navigateTopOrBottom}
         onOpenNewScan={() => openScanner({ batch: false })}
       />
+
+      <OfflineIndicator />
 
       {loading ? (
         <div className="mx-auto w-full max-w-[1440px] p-4 sm:p-8">
@@ -559,6 +585,8 @@ export default function App() {
           savedSignatures={savedSignatures}
           onUpdateSettings={handleUpdateSettings}
           onOpenSettings={() => setActiveView('settings')}
+          onOpenInfoPage={(page) => setActiveView(page)}
+          onReplayOnboarding={() => setOnboardingReplayOpen(true)}
           onOpenSignatures={() => {
             setLibraryInitialFolder('signatures');
             setActiveView('library');
@@ -570,6 +598,13 @@ export default function App() {
         <SettingsView
           settings={appSettings}
           onUpdateSettings={handleUpdateSettings}
+          onReplayOnboarding={() => setOnboardingReplayOpen(true)}
+          onBackToProfile={() => setActiveView('profile')}
+        />
+      ) : isInfoView ? (
+        <InfoPagesView
+          page={activeView as InfoPageId}
+          onNavigatePage={(page) => setActiveView(page)}
           onBackToProfile={() => setActiveView('profile')}
         />
       ) : activeView === 'id_studio' ? (
@@ -594,6 +629,7 @@ export default function App() {
           onExportDocument={(doc) => setExportState({ doc, pageIndex: 0 })}
           onToggleStar={handleToggleStar}
           onRenameDocument={handleRenameDocument}
+          onEditProject={(doc) => setEditingProjectDoc(doc)}
           onDeleteDocument={handleDeleteDocument}
           onStartNewScan={() => openScanner({ mode: 'docs' })}
           onOpenIdStudio={() => setActiveView('id_studio')}
@@ -617,6 +653,8 @@ export default function App() {
         initialFiles={scannerInitialFiles}
         appendTargetDocId={appendTargetDocId}
         defaultFilter={appSettings.defaultFilter}
+        autoEdgeDetect={appSettings.autoEdgeDetect}
+        defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
         onClose={() => {
           setScannerOpen(false);
           setScannerInitialFiles(null);
@@ -624,6 +662,16 @@ export default function App() {
         }}
         onCompletePages={handleCompleteScannedPages}
         onCompleteIdPair={handleCompleteIdPair}
+      />
+
+      <ProjectEditModal
+        document={editingProjectDoc}
+        onClose={() => setEditingProjectDoc(null)}
+        onSaveChanges={(nextDoc) => {
+          handleUpdateDocument(nextDoc);
+          setEditingProjectDoc(nextDoc);
+        }}
+        onDeleteProject={handleDeleteDocument}
       />
 
       <SignatureModal
@@ -640,8 +688,26 @@ export default function App() {
         initialSelectedPages={exportState?.selectedPages}
         defaultPaperSize={appSettings.defaultPaperSize}
         defaultQuality={appSettings.defaultPdfQuality}
+        defaultExportFormat={appSettings.defaultExportFormat}
+        defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
         defaultSearchablePdf={appSettings.searchablePdfByDefault}
         onClose={() => setExportState(null)}
+      />
+
+      <OnboardingFlow
+        isOpen={shouldShowOnboarding}
+        initialSettings={appSettings}
+        isReplay={onboardingReplayOpen}
+        onComplete={(patch) => {
+          handleUpdateSettings(patch);
+          setOnboardingReplayOpen(false);
+        }}
+        onSkip={() => {
+          if (!appSettings.hasCompletedOnboarding) {
+            handleUpdateSettings({ hasCompletedOnboarding: true });
+          }
+          setOnboardingReplayOpen(false);
+        }}
       />
 
       <KotlinBlueprintModal

@@ -19,7 +19,11 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
   if (
     activeView === 'editor' ||
     activeView === 'project' ||
-    activeView === 'settings'
+    activeView === 'settings' ||
+    activeView === 'about' ||
+    activeView === 'release_notes' ||
+    activeView === 'privacy' ||
+    activeView === 'help'
   ) {
     return null;
   }

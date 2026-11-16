@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import type { ExportOptions, ScanDocument, ScannedPage } from '../types/scanner';
 import { loadImage, processPagePipeline } from './imageProcessor';
 import {
+  buildOcrMarkdownText,
   buildWordExportHtml,
   getSelectedPages,
   resolveSelectedPageIndices,
@@ -358,7 +359,7 @@ export async function exportDocumentAsWord(
 export function exportOcrTextFile(
   title: string,
   text: string,
-  format: 'txt' | 'doc',
+  format: 'txt' | 'doc' | 'md',
   ocrBlocks?: ScannedPage['ocrBlocks']
 ): void {
   const safeName = sanitizeExportFilename(title, 'extracted-text');
@@ -371,6 +372,9 @@ export function exportOcrTextFile(
       { includeImages: false, includeOcrText: true }
     );
     blob = new Blob([html], { type: 'application/msword;charset=utf-8' });
+  } else if (format === 'md') {
+    const md = buildOcrMarkdownText(safeName, text, ocrBlocks);
+    blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
   } else {
     blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   }

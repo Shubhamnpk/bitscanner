@@ -50,6 +50,7 @@ interface LibraryViewProps {
   onExportDocument: (doc: ScanDocument) => void;
   onToggleStar: (docId: string) => void;
   onRenameDocument: (docId: string, nextTitle: string) => void;
+  onEditProject?: (doc: ScanDocument) => void;
   onDeleteDocument: (docId: string) => void;
   onStartNewScan: () => void;
   onOpenIdStudio: () => void;
@@ -96,6 +97,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   onExportDocument,
   onToggleStar,
   onRenameDocument,
+  onEditProject,
   onDeleteDocument,
   onStartNewScan,
   onOpenIdStudio,
@@ -652,11 +654,15 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            setEditingId(doc.id);
-                            setDraftTitle(doc.title);
+                            if (onEditProject) {
+                              onEditProject(doc);
+                            } else {
+                              setEditingId(doc.id);
+                              setDraftTitle(doc.title);
+                            }
                           }}
-                          aria-label={`Rename ${doc.title}`}
-                          title="Rename"
+                          aria-label={`Edit project ${doc.title}`}
+                          title="Edit project"
                           className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -941,12 +947,18 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 type="button"
                 onClick={() => {
                   haptics.tap();
-                  setSheetRenaming(true);
+                  if (onEditProject) {
+                    const target = actionSheetDoc;
+                    setActionSheetDoc(null);
+                    onEditProject(target);
+                  } else {
+                    setSheetRenaming(true);
+                  }
                 }}
                 className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
               >
                 <Pencil className="h-5 w-5 text-slate-600" aria-hidden="true" />
-                <span>Rename Document</span>
+                <span>{onEditProject ? 'Edit Project Options' : 'Rename Document'}</span>
               </button>
 
               <button

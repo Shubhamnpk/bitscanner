@@ -2,13 +2,73 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>bitscanner — Free Document & ID Scanner</title>
-    <meta name="description" content="Free open-source document scanner with auto perspective cropping, ID card dual-side maker, Magic Color & shadow removal filters, OCR, e-signature, and multi-page PDF export." />
-    <meta property="og:title" content="bitscan — Free Document & ID Scanner" />
-    <meta property="og:description" content="Scan documents, crop perspective automatically, enhance with Magic Color or B&W, extract OCR text, sign, and export crisp multi-page PDFs for free." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>bitscanner — Document, OCR &amp; ID Card Scanner</title>
+    <meta
+      name="description"
+      content="Scan documents offline with auto perspective crop, Magic Color enhancement, local OCR text extraction, e-signatures, passport photos, and multi-page PDF export."
+    />
+    <meta name="keywords" content="document scanner, PDF scanner, OCR scanner, ID card maker, passport photo maker, e-signature, PWA scanner, bitscanner" />
+    <meta name="robots" content="index, follow" />
+    <meta name="application-name" content="bitscanner" />
+    <meta name="author" content="bitscanner" />
+
+    <!-- OpenGraph Social Card -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="bitscanner" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:title" content="bitscanner — Document, OCR &amp; ID Card Scanner" />
+    <meta
+      property="og:description"
+      content="Scan documents offline with auto perspective crop, Magic Color enhancement, local OCR text extraction, e-signatures, and multi-page PDF export."
+    />
+    <meta property="og:image" content="/pwa-512x512.png" />
+
+    <!-- Twitter / X Social Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="bitscanner — Document, OCR &amp; ID Card Scanner" />
+    <meta
+      name="twitter:description"
+      content="Offline-first document scanner with perspective auto-crop, Magic Color, local OCR, passport photo maker, and multi-page PDF export."
+    />
+    <meta name="twitter:image" content="/pwa-512x512.png" />
+
+    <!-- PWA & iOS Safari Compliance -->
+    <meta name="theme-color" content="#0d9488" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="bitscan" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+
+    <!-- Schema.org Structured Data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "bitscanner",
+        "alternateName": "bitscan",
+        "applicationCategory": "ProductivityApplication",
+        "operatingSystem": "All",
+        "browserRequirements": "Requires JavaScript and HTML5 Canvas",
+        "description": "Offline-first document and ID card scanner with automatic perspective edge detection, Magic Color filters, local OCR extraction, e-signatures, and multi-page PDF export.",
+        "featureList": [
+          "Automatic perspective document edge detection and crop",
+          "Magic Color, Shadow Removal, and B&W Crisp document filters",
+          "On-device OCR text, table, and key-field extraction",
+          "E-signature drawing, stamping, and document annotation",
+          "ID Card Maker and Passport Photo cut-ready print sheets",
+          "Multi-page PDF, Word (.doc), Markdown, and image export"
+        ],
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />

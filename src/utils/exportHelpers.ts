@@ -175,3 +175,47 @@ export function buildWordExportHtml(
 </body>
 </html>`;
 }
+
+/**
+ * Formats extracted OCR text & structured layout blocks cleanly as Markdown (.md).
+ */
+export function buildOcrMarkdownText(
+  title: string,
+  text: string,
+  ocrBlocks?: OcrStructuredBlock[]
+): string {
+  const blocks = parseOcrDocumentLayout(text, ocrBlocks);
+  if (blocks.length === 0) {
+    return `# ${title || 'Extracted Document'}\n\n${text.trim()}\n`;
+  }
+
+  const parts = blocks.map((b) => {
+    if (b.kind === 'heading') return `## ${b.text}`;
+    if (b.kind === 'key_value') {
+      return b.pairs.map((p) => `- **${p.key}:** ${p.value}`).join('\n');
+    }
+    if (b.kind === 'list') {
+      return b.items.map((it) => `- ${it}`).join('\n');
+    }
+    if (b.kind === 'table') {
+      const cols = Math.max(b.headers?.length || 0, b.rows[0]?.length || 0);
+      if (cols === 0) return '';
+      const headerRow = b.headers && b.headers.length > 0
+        ? b.headers
+        : Array.from({ length: cols }, (_, i) => `Column ${i + 1}`);
+      const sepRow = Array.from({ length: cols }, (_, i) =>
+        b.alignments?.[i] === 'right' ? '---:' : '---'
+      );
+      const lines = [
+        `| ${headerRow.join(' | ')} |`,
+        `| ${sepRow.join(' | ')} |`,
+        ...b.rows.map((r) => `| ${r.join(' | ')} |`),
+      ];
+      return lines.join('\n');
+    }
+    return b.text;
+  });
+
+  return `# ${title || 'Extracted Document'}\n\n${parts.filter(Boolean).join('\n\n')}\n`;
+}
+

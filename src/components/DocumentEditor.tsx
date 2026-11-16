@@ -24,6 +24,7 @@ import {
   RotateCcw,
   RotateCw,
   ScanText,
+  Share2,
   Slash,
   SlidersHorizontal,
   Sparkles,
@@ -56,6 +57,8 @@ import {
   clampPanOffset,
   computeCenteredPlacement,
   computePinchZoomScale,
+  computeRubberBandSwipeOffset,
+  computeSwipePageDelta,
   resizeAnnotationByDelta,
   type ResizeHandle,
 } from '../utils/annotationHelpers';
@@ -187,6 +190,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [processingPage, setProcessingPage] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [swipeOffsetX, setSwipeOffsetX] = useState(0);
 
   // Re-crop modal inside edit mode
   const [recropOpen, setRecropOpen] = useState(false);
@@ -205,7 +211,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [aspectLocked, setAspectLocked] = useState(true);
   const [mobileMarkupSection, setMobileMarkupSection] = useState<'sign' | 'text' | 'shapes' | 'draw'>('sign');
 
-  // Gesture zoom refs (pinch-to-zoom & double-tap)
+  // Gesture zoom & swipe refs
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.matchMedia('(max-width: 768px)').matches;
   const stageViewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -217,6 +223,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const pointerDragRef = useRef<PointerDragState | null>(null);
   const stagePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStartRef = useRef<{ dist: number; zoom: number } | null>(null);
+  const swipeRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startTime: number;
+    active: boolean;
+  } | null>(null);
   const panDragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -251,7 +264,30 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   useEffect(() => {
     setZoomScale(1.0);
     setPanOffset({ x: 0, y: 0 });
+    setSwipeOffsetX(0);
+    swipeRef.current = null;
   }, [activePageIdx, document.id]);
+
+  // Keyboard Left/Right arrows switch pages naturally like a photo viewer
+  useEffect(() => {
+    if (document.pages.length <= 1) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (recropOpen || signatureModalOpen || confirmDiscardOpen) return;
+      if (e.key === 'ArrowRight') {
+        setSelectedAnnId(null);
+        setInlineTextEditId(null);
+        setActivePageIdx((idx) => Math.min(document.pages.length - 1, idx + 1));
+      } else if (e.key === 'ArrowLeft') {
+        setSelectedAnnId(null);
+        setInlineTextEditId(null);
+        setActivePageIdx((idx) => Math.max(0, idx - 1));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [document.pages.length, recropOpen, signatureModalOpen, confirmDiscardOpen]);
 
   useEffect(() => {
     const el = stageRef.current;
@@ -856,13 +892,85 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     );
   };
 
-  // Viewport capture-phase gesture zoom (2-finger pinch in/out, double-tap, wheel zoom, pan when zoomed)
+  // Native Share action for View Mode top header (Web Share API with image file + graceful download fallback)
+  const handleShareActivePage = async () => {
+    if (!activePage || shareBusy) return;
+    haptics.tap();
+    setShareBusy(true);
+    try {
+      const rendered = await processPagePipeline(
+        activePage.croppedDataUrl,
+        activePage.filter,
+        activePage.adjustments,
+        activePage.rotation,
+        activePage.flipH,
+        {
+          maxDim: 1600,
+          annotations: activePage.annotations,
+          watermark: activePage.watermark,
+          includeOverlays: true,
+          backgroundColor: activePage.backgroundColor || '#ffffff',
+        }
+      );
+      const res = await fetch(rendered.dataUrl);
+      const blob = await res.blob();
+      const ext = rendered.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
+      const safeTitle = (document.title || 'scanned-page').replace(/[^a-zA-Z0-9_\-. ]/g, '_');
+      const file = new File([blob], `${safeTitle}_p${safeIdx + 1}.${ext}`, {
+        type: blob.type || `image/${ext === 'png' ? 'png' : 'jpeg'}`,
+      });
+
+      const nav = navigator as Navigator & {
+        canShare?: (data?: ShareData) => boolean;
+      };
+
+      if (typeof nav.share === 'function') {
+        const shareData: ShareData = {
+          title: document.title,
+          text: activePage.ocrText
+            ? activePage.ocrText.slice(0, 180)
+            : `${document.title} — Page ${safeIdx + 1}`,
+          files: [file],
+        };
+        if (!nav.canShare || nav.canShare({ files: [file] })) {
+          await nav.share(shareData);
+        } else {
+          await nav.share({
+            title: document.title,
+            text: `${document.title} (Page ${safeIdx + 1} of ${document.pages.length})`,
+          });
+        }
+        setShareNotice('Shared');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = window.document.createElement('a');
+        a.href = url;
+        a.download = `${safeTitle}_p${safeIdx + 1}.${ext}`;
+        window.document.body.appendChild(a);
+        a.click();
+        window.document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setShareNotice('Image saved');
+      }
+      window.setTimeout(() => setShareNotice(null), 1800);
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        onOpenExport(safeIdx);
+      }
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  // Viewport capture-phase gesture zoom, pan, and horizontal swipe across pages
   const handleViewportPointerDownCapture = (e: React.PointerEvent<HTMLDivElement>) => {
     stagePointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (stagePointersRef.current.size === 2) {
-      // Two fingers active -> cancel single-finger drag/draw and initiate pinch zoom
+      // Two fingers active -> cancel single-finger drag/draw/swipe and initiate pinch zoom
       pointerDragRef.current = null;
       panDragRef.current = null;
+      swipeRef.current = null;
+      setSwipeOffsetX(0);
       setActiveStrokePoints(null);
       const pts = Array.from(stagePointersRef.current.values());
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
@@ -889,6 +997,25 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       setPanOffset(
         clampPanOffset(nextX, nextY, zoomScale, stageDims.width, stageDims.height)
       );
+      return;
+    }
+
+    if (
+      swipeRef.current &&
+      swipeRef.current.pointerId === e.pointerId &&
+      !pointerDragRef.current &&
+      stagePointersRef.current.size === 1 &&
+      zoomScale <= 1.05 &&
+      document.pages.length > 1
+    ) {
+      const dx = e.clientX - swipeRef.current.startX;
+      const dy = e.clientY - swipeRef.current.startY;
+      if (!swipeRef.current.active && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        swipeRef.current.active = true;
+      }
+      if (swipeRef.current.active) {
+        setSwipeOffsetX(computeRubberBandSwipeOffset(dx, safeIdx, document.pages.length));
+      }
     }
   };
 
@@ -899,6 +1026,28 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     }
     if (panDragRef.current && panDragRef.current.pointerId === e.pointerId) {
       panDragRef.current = null;
+    }
+    if (swipeRef.current && swipeRef.current.pointerId === e.pointerId) {
+      const swipe = swipeRef.current;
+      swipeRef.current = null;
+      if (swipe.active && !pointerDragRef.current) {
+        const dx = e.clientX - swipe.startX;
+        const dy = e.clientY - swipe.startY;
+        const delta = computeSwipePageDelta(
+          dx,
+          dy,
+          Date.now() - swipe.startTime,
+          safeIdx,
+          document.pages.length
+        );
+        if (delta !== 0) {
+          haptics.tap();
+          setSelectedAnnId(null);
+          setInlineTextEditId(null);
+          setActivePageIdx((idx) => clamp(idx + delta, 0, document.pages.length - 1));
+        }
+      }
+      setSwipeOffsetX(0);
     }
   };
 
@@ -918,6 +1067,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
       const targetZoom = zoomScale > 1.15 ? 1.0 : 1.85;
       applyZoomScale(targetZoom);
       lastStageTapRef.current = null;
+      swipeRef.current = null;
+      setSwipeOffsetX(0);
       return;
     }
     lastStageTapRef.current = { time: now, x: e.clientX, y: e.clientY };
@@ -930,6 +1081,18 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         startY: e.clientY,
         origPanX: panOffset.x,
         origPanY: panOffset.y,
+      };
+      return;
+    }
+
+    // Bare canvas swipe left/right between pages (View Mode & Edit Mode when not dragging an overlay)
+    if (document.pages.length > 1 && !pointerDragRef.current) {
+      swipeRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startTime: now,
+        active: false,
       };
     }
   };
@@ -1163,13 +1326,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
 
             <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
-              {savedNotice && (
+              {(savedNotice || shareNotice) && (
                 <span
                   role="status"
                   className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-teal-700 mr-1"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Saved</span>
+                  <span>{shareNotice || 'Saved'}</span>
                 </span>
               )}
 
@@ -1205,21 +1368,33 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
               <button
                 type="button"
+                disabled={shareBusy}
+                onClick={handleShareActivePage}
+                data-testid="view-share-btn"
+                aria-label="Share current page"
+                className="inline-flex h-9 lg:h-auto min-w-[38px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border border-slate-200 lg:border-slate-300 bg-white px-2.5 lg:px-3 lg:py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+              >
+                <Share2 className="h-4 w-4 lg:h-3.5 lg:w-3.5 text-slate-700" aria-hidden="true" />
+                <span className="hidden sm:inline">Share</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => {
                   haptics.tap();
                   onOpenExport(safeIdx);
                 }}
                 data-testid="view-export-btn"
                 aria-label="Export document"
-                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 active:scale-[0.98] cursor-pointer"
+                title="Export"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98] cursor-pointer shrink-0"
               >
-                <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Export</span>
+                <Download className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </>
         ) : (
-          /* EDIT MODE TOP BAR — mobile keeps Cancel + Title + Compare so Rotate/Crop/Save aren't duplicated in bottom dock */
+          /* EDIT MODE TOP BAR — Cancel + Title + Compare + Save in top nav on both Mobile & Desktop */
           <>
             <div className="flex items-center gap-1.5 lg:gap-3 min-w-0 flex-1">
               <button
@@ -1233,30 +1408,54 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 <span className="hidden sm:inline">Cancel</span>
               </button>
 
-              <input
-                type="text"
-                value={titleDraft}
-                aria-label="Document title"
-                onChange={(e) => {
-                  setTitleDraft(e.target.value);
-                  setIsDirty(true);
-                }}
-                onBlur={() => {
-                  const trimmed = titleDraft.trim();
-                  if (trimmed && trimmed !== document.title) {
-                    onUpdateDocument({ ...document, title: trimmed, updatedAt: Date.now() });
-                  }
-                }}
-                className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-bold text-slate-900 focus:border-teal-600 focus:outline-none"
-              />
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <input
+                  type="text"
+                  value={titleDraft}
+                  aria-label="Document title"
+                  onChange={(e) => {
+                    setTitleDraft(e.target.value);
+                    setIsDirty(true);
+                  }}
+                  onBlur={() => {
+                    const trimmed = titleDraft.trim();
+                    if (trimmed && trimmed !== document.title) {
+                      onUpdateDocument({ ...document, title: trimmed, updatedAt: Date.now() });
+                    }
+                  }}
+                  className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-slate-200 px-2.5 py-1 text-sm font-bold text-slate-900 focus:border-teal-600 focus:outline-none"
+                />
+                {document.pages.length > 1 && (
+                  <span
+                    data-testid="edit-mode-page-indicator"
+                    className="shrink-0 font-mono-tabular text-[11px] font-semibold text-slate-500 whitespace-nowrap"
+                  >
+                    {safeIdx + 1}/{document.pages.length}
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-1 lg:gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 lg:gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  onOpenExport(safeIdx);
+                }}
+                data-testid="edit-export-btn"
+                aria-label="Export document"
+                title="Export"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.98] cursor-pointer shrink-0"
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+              </button>
+
               <button
                 type="button"
                 onClick={() => setCompareOriginal((v) => !v)}
                 aria-label={compareOriginal ? 'Show enhanced scan' : 'Compare with original photo'}
-                className={`inline-flex h-10 lg:h-auto min-w-[40px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                className={`inline-flex h-9 lg:h-auto min-w-[36px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border px-2 lg:px-3 lg:py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   compareOriginal
                     ? 'border-teal-600 bg-teal-50 text-teal-800'
                     : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -1296,7 +1495,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={handleSaveEdits}
                 data-testid="save-edits-btn"
-                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer"
+                className="inline-flex h-9 lg:h-auto items-center gap-1.5 rounded-xl lg:rounded-lg bg-teal-600 px-3 lg:px-4 lg:py-1.5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer shrink-0"
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Save</span>
@@ -1428,75 +1627,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
         {/* Center Light Studio-Mat Document Stage (Pinch-to-Zoom & Pan) */}
         <section className="relative flex flex-1 min-h-0 flex-col overflow-hidden editor-mat-bg">
-          {/* Edit Mode Multi-Page Switcher Strip */}
-          {editorMode === 'edit' && document.pages.length > 1 && (
-            <div
-              data-testid="edit-mode-page-switcher"
-              className="shrink-0 flex items-center justify-center gap-1.5 border-b border-slate-200 bg-white/95 px-3 py-1.5 text-slate-800 backdrop-blur-xs"
-            >
-              <button
-                type="button"
-                disabled={safeIdx === 0}
-                onClick={() => {
-                  haptics.tap();
-                  setSelectedAnnId(null);
-                  setActivePageIdx(Math.max(0, safeIdx - 1));
-                }}
-                aria-label="Edit previous page"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-              </button>
-
-              <div className="flex items-center gap-1 overflow-x-auto max-w-[75vw]">
-                {document.pages.map((p, idx) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    data-testid={`edit-page-chip-${idx}`}
-                    onClick={() => {
-                      haptics.tap();
-                      setSelectedAnnId(null);
-                      setActivePageIdx(idx);
-                    }}
-                    className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-[11px] font-mono-tabular font-semibold transition-colors cursor-pointer ${
-                      idx === safeIdx
-                        ? 'border-teal-600 bg-teal-600 text-white shadow-2xs'
-                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    <img
-                      src={p.thumbnailDataUrl || p.processedDataUrl}
-                      alt=""
-                      className="h-4 w-3 rounded-xs object-cover"
-                    />
-                    <span>P{idx + 1}</span>
-                  </button>
-                ))}
-              </div>
-
-              <button
-                type="button"
-                disabled={safeIdx >= document.pages.length - 1}
-                onClick={() => {
-                  haptics.tap();
-                  setSelectedAnnId(null);
-                  setActivePageIdx(Math.min(document.pages.length - 1, safeIdx + 1));
-                }}
-                aria-label="Edit next page"
-                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-              >
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-          )}
-
           {/* Lightweight transient status / zoom reset / batch apply HUD */}
           {(processingPage ||
             Boolean(appliedAllNotice) ||
             (editorMode === 'edit' && drawTool !== 'none') ||
             Math.abs(zoomScale - 1) > 0.04) && (
-            <div className="pointer-events-none absolute top-11 inset-x-0 z-20 flex justify-center px-3">
+            <div className="pointer-events-none absolute top-3 inset-x-0 z-20 flex justify-center px-3">
               <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/90 px-3 py-1 text-xs text-slate-100 shadow-lg backdrop-blur-xs">
                 {appliedAllNotice && !processingPage && (
                   <span className="inline-flex items-center gap-1 font-medium text-teal-300">
@@ -1531,8 +1667,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           )}
 
-          {/* VIEW MODE: Previous & Next page buttons pinned to left and right edges of main stage */}
-          {editorMode === 'view' && (
+          {/* Multi-Page Prev/Next Arrows (all viewports in View Mode; desktop hover-assist in Edit Mode) */}
+          {document.pages.length > 1 && (
             <>
               <button
                 type="button"
@@ -1540,10 +1676,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 disabled={safeIdx <= 0}
                 onClick={() => {
                   haptics.tap();
+                  setSelectedAnnId(null);
                   setActivePageIdx((i) => Math.max(0, i - 1));
                 }}
                 aria-label="Previous page"
-                className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-slate-950/80 text-white shadow-xl backdrop-blur-md hover:bg-slate-900 active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer"
+                className={`${
+                  editorMode === 'view' ? 'flex' : 'hidden lg:flex'
+                } absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-800 shadow-md backdrop-blur-md hover:bg-white active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1554,10 +1693,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 disabled={safeIdx >= document.pages.length - 1}
                 onClick={() => {
                   haptics.tap();
+                  setSelectedAnnId(null);
                   setActivePageIdx((i) => Math.min(document.pages.length - 1, i + 1));
                 }}
                 aria-label="Next page"
-                className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-slate-950/80 text-white shadow-xl backdrop-blur-md hover:bg-slate-900 active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer"
+                className={`${
+                  editorMode === 'view' ? 'flex' : 'hidden lg:flex'
+                } absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-800 shadow-md backdrop-blur-md hover:bg-white active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
               >
                 <ChevronRight className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1574,7 +1716,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             onPointerDown={handleViewportPointerDown}
             onWheel={handleViewportWheel}
             className={`flex flex-1 min-h-0 items-center justify-center overflow-hidden touch-none ${
-              editorMode === 'view' ? 'px-16 py-4 sm:px-20 sm:py-6' : 'p-3 sm:p-6'
+              editorMode === 'view'
+                ? document.pages.length > 1
+                  ? 'px-12 py-3 sm:px-20 sm:py-6'
+                  : 'px-3 py-3 sm:px-8 sm:py-6'
+                : 'p-2 sm:p-4'
             }`}
           >
             <div
@@ -1585,7 +1731,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               onPointerMove={handleStagePointerMove}
               onPointerUp={handleStagePointerUp}
               style={{
-                transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoomScale})`,
+                transform: `translate3d(${panOffset.x + swipeOffsetX}px, ${panOffset.y}px, 0) scale(${zoomScale})`,
                 transformOrigin: 'center center',
                 ...(activePage.backgroundColor === 'transparent' &&
                 !(editorMode === 'edit' && compareOriginal)
@@ -1598,7 +1744,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }
                   : {}),
               }}
-              className={`relative w-full max-w-[520px] bg-white ring-1 ring-slate-900/10 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.22)] select-none touch-none transition-transform duration-75 ease-out ${
+              className={`relative w-full max-w-[520px] bg-white ring-1 ring-slate-900/10 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.22)] select-none touch-none ${
+                swipeOffsetX !== 0 ? 'transition-none' : 'transition-transform duration-150 ease-out'
+              } ${
                 editorMode === 'edit' && drawTool !== 'none'
                   ? 'cursor-crosshair'
                   : zoomScale > 1.02
@@ -1908,7 +2056,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origAnn: { ...ann },
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  stageRef.current?.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignore capture refusal in synthetic/touch environments
+                                }
                               }}
                               className="absolute -top-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
                             />
@@ -1929,7 +2081,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origAnn: { ...ann },
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  stageRef.current?.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignore capture refusal in synthetic/touch environments
+                                }
                               }}
                               className="absolute -top-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
                             />
@@ -1950,7 +2106,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origAnn: { ...ann },
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  stageRef.current?.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignore capture refusal in synthetic/touch environments
+                                }
                               }}
                               className="absolute -bottom-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
                             />
@@ -1971,7 +2131,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origAnn: { ...ann },
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  stageRef.current?.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignore capture refusal in synthetic/touch environments
+                                }
                               }}
                               className="absolute -bottom-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
                             />
@@ -1992,7 +2156,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   startY: e.clientY,
                                   origAnn: { ...ann },
                                 };
-                                stageRef.current?.setPointerCapture(e.pointerId);
+                                try {
+                                  stageRef.current?.setPointerCapture(e.pointerId);
+                                } catch {
+                                  // Ignore capture refusal in synthetic/touch environments
+                                }
                               }}
                               className="absolute -right-2 top-1/2 -translate-y-1/2 flex h-7 w-4 items-center justify-center rounded-full border border-white bg-teal-600 shadow cursor-ew-resize touch-none"
                             >
@@ -2041,49 +2209,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 )}
             </div>
           </div>
-
-          {/* VIEW MODE: Sleek Theme-Compatible Page Indicator & Thumbnails */}
-          {editorMode === 'view' && (
-            <div
-              data-testid="view-mode-footer"
-              className="mx-auto mb-2.5 lg:mb-5 shrink-0 inline-flex max-w-[calc(100%-2rem)] items-center gap-2.5 rounded-2xl border border-slate-200/90 bg-white/95 px-3.5 py-1.5 lg:px-4 lg:py-2 text-slate-800 shadow-lg backdrop-blur-md"
-            >
-              {document.pages.length > 1 && (
-                <div className="flex items-center gap-1.5 overflow-x-auto">
-                  {document.pages.map((p, idx) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        haptics.tap();
-                        setActivePageIdx(idx);
-                      }}
-                      aria-label={`View page ${idx + 1}`}
-                      className={`relative shrink-0 overflow-hidden rounded-lg border-2 transition-all cursor-pointer ${
-                        idx === safeIdx
-                          ? 'border-teal-600 ring-2 ring-teal-500/20 scale-105'
-                          : 'border-slate-200 opacity-75 hover:opacity-100'
-                      }`}
-                    >
-                      <img
-                        src={p.thumbnailDataUrl || p.processedDataUrl}
-                        alt={`Page ${idx + 1}`}
-                        className="h-8 w-6 lg:h-9 lg:w-7 object-cover"
-                      />
-                      <span className="sr-only">Page {idx + 1}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <span
-                data-testid="view-mode-page-indicator"
-                className="font-mono-tabular text-xs font-semibold text-slate-700 whitespace-nowrap"
-              >
-                Page {safeIdx + 1} of {document.pages.length}
-              </span>
-            </div>
-          )}
 
           {/* VIEW MODE MOBILE PAGES DRAWER (Supports Drag-and-Drop Reorder) */}
           {editorMode === 'view' && viewPagesOpen && (
@@ -2881,13 +3006,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         )}
       </div>
 
-      {/* VIEW MODE MOBILE BOTTOM ACTION DOCK — stays persistent even when in-stage OCR is open! */}
+      {/* VIEW MODE MOBILE BOTTOM ACTION DOCK — clean 4-action bar (Share & Export live in Top Header) */}
       {editorMode === 'view' && (
         <div
           data-testid="view-mobile-bottom-dock"
           className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
         >
-          <div className="grid grid-cols-5 h-[58px] px-1">
+          <div className="grid grid-cols-4 h-[58px] px-1">
             <button
               type="button"
               data-testid="mobile-view-add-page-btn"
@@ -2945,19 +3070,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               <span className="mt-0.5 text-[10px] font-semibold">
                 Pages ({document.pages.length})
               </span>
-            </button>
-
-            <button
-              type="button"
-              data-testid="mobile-view-export-btn"
-              onClick={() => {
-                haptics.tap();
-                onOpenExport(safeIdx);
-              }}
-              className="flex flex-col items-center justify-center min-h-[44px] text-teal-700 active:scale-95 transition-transform cursor-pointer"
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              <span className="mt-0.5 text-[10px] font-bold">Export</span>
             </button>
           </div>
         </div>
@@ -3487,9 +3599,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
           )}
 
-          {/* Cohesive 6-Item Light-Theme Mobile Edit Action Dock (Crop & Rotate merged!) */}
+          {/* Compact 5-Item Light-Theme Mobile Edit Action Dock matching crop screen height */}
           <div className="bg-white/95 pb-safe">
-            <div className="grid grid-cols-6 items-center px-1.5 py-1.5 gap-0.5">
+            <div className="grid grid-cols-5 items-center px-1.5 py-1 gap-1">
               <button
                 type="button"
                 data-testid="mobile-dock-crop"
@@ -3505,7 +3617,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     setDrawTool('none');
                   }
                 }}
-                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'crop'
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -3531,7 +3643,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     setDrawTool('none');
                   }
                 }}
-                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'enhance'
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -3556,7 +3668,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     setDrawTool('none');
                   }
                 }}
-                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'markup'
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -3581,7 +3693,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     setDrawTool('none');
                   }
                 }}
-                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'watermark'
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -3604,7 +3716,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     void handleRunOcr();
                   }
                 }}
-                className={`flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-xl active:scale-95 transition cursor-pointer ${
+                className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   editOcrOpen
                     ? 'bg-teal-50 text-teal-700'
                     : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
@@ -3612,16 +3724,6 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               >
                 <ScanText className="h-[18px] w-[18px]" aria-hidden="true" />
                 <span className="text-[10px] font-semibold">OCR</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveEdits}
-                data-testid="mobile-save-edits-btn"
-                className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl bg-teal-600 text-white shadow-xs hover:bg-teal-700 active:scale-95 transition cursor-pointer"
-              >
-                <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />
-                <span className="text-[10px] font-bold">Save</span>
               </button>
             </div>
           </div>

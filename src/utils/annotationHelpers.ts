@@ -198,3 +198,47 @@ export function clampPanOffset(
     y: Math.round(clamp(panY, -maxY, maxY)),
   };
 }
+
+/**
+ * Evaluates a completed swipe gesture and returns -1 (previous page), +1 (next page),
+ * or 0 (stay on current page), enforcing horizontal directional dominance and page bounds.
+ */
+export function computeSwipePageDelta(
+  dx: number,
+  dy: number,
+  elapsedMs: number,
+  currentIdx: number,
+  totalPages: number
+): -1 | 0 | 1 {
+  if (totalPages <= 1) return 0;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+  if (absX < 22 || absX < absY * 1.2) return 0;
+
+  const velocity = absX / Math.max(16, elapsedMs);
+  const triggered = absX >= 54 || velocity >= 0.35;
+  if (!triggered) return 0;
+
+  if (dx < 0) {
+    return currentIdx < totalPages - 1 ? 1 : 0;
+  }
+  return currentIdx > 0 ? -1 : 0;
+}
+
+/**
+ * Computes live horizontal translation during a swipe drag with gentle edge rubber-banding.
+ */
+export function computeRubberBandSwipeOffset(
+  dx: number,
+  currentIdx: number,
+  totalPages: number
+): number {
+  if (totalPages <= 1) return 0;
+  const hittingStartEdge = currentIdx <= 0 && dx > 0;
+  const hittingEndEdge = currentIdx >= totalPages - 1 && dx < 0;
+  if (hittingStartEdge || hittingEndEdge) {
+    return Math.round(clamp(dx * 0.25, -48, 48));
+  }
+  return Math.round(clamp(dx, -180, 180));
+}
+

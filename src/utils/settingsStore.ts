@@ -89,30 +89,81 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
 export interface AppSettings {
   displayName: string;
   email: string;
+  accountHandle: string;
+  avatarColor: string;
+  accountCreatedAt: number;
+  hasCompletedOnboarding: boolean;
   defaultFilter: FilterPreset;
   defaultPaperSize: PdfPaperSize;
   defaultPdfQuality: PdfQuality;
+  defaultExportFormat: 'pdf' | 'image' | 'word';
+  defaultFilenamePrefix: string;
   searchablePdfByDefault: boolean;
   defaultOcrLang: string;
+  autoEdgeDetect: boolean;
+  autoRunOcr: boolean;
+  autoSaveOriginal: boolean;
+  confirmBeforeDelete: boolean;
+  reduceMotion: boolean;
   hapticsEnabled: boolean;
   defaultLibraryView: 'grid' | 'list';
   favoriteTools: ToolId[];
 }
 
+export const AVATAR_COLOR_OPTIONS = [
+  { id: '#0d9488', label: 'Teal' },
+  { id: '#0f172a', label: 'Slate' },
+  { id: '#2563eb', label: 'Blue' },
+  { id: '#7c3aed', label: 'Violet' },
+  { id: '#d97706', label: 'Amber' },
+  { id: '#e11d48', label: 'Rose' },
+] as const;
+
+export const APP_VERSION = '0.0.3';
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  displayName: 'user',
-  email: 'user@gmail.com',
+  displayName: 'Local Workspace',
+  email: 'offline@bitscan.local',
+  accountHandle: '@bitscan_user',
+  avatarColor: '#0d9488',
+  accountCreatedAt: Date.now(),
+  hasCompletedOnboarding: false,
   defaultFilter: 'magic_color',
   defaultPaperSize: 'a4',
   defaultPdfQuality: 'high',
+  defaultExportFormat: 'pdf',
+  defaultFilenamePrefix: 'Scan_',
   searchablePdfByDefault: true,
   defaultOcrLang: 'eng',
+  autoEdgeDetect: true,
+  autoRunOcr: false,
+  autoSaveOriginal: true,
+  confirmBeforeDelete: true,
+  reduceMotion: false,
   hapticsEnabled: true,
   defaultLibraryView: 'grid',
   favoriteTools: ['images_to_pdf', 'pdf_to_images', 'pp_size', 'id_card'],
 };
 
 const STORAGE_KEY = 'camscan_studio_settings_v1';
+
+export function sanitizeAccountHandle(raw: string): string {
+  const cleaned = raw.trim().replace(/[^a-zA-Z0-9._-]/g, '').toLowerCase();
+  if (!cleaned) return '@bitscan_user';
+  return `@${cleaned.slice(0, 24)}`;
+}
+
+export function sanitizeFilenamePrefix(raw: string): string {
+  const cleaned = raw.replace(/[^\w-]/g, '').slice(0, 24);
+  return cleaned || 'Scan_';
+}
+
+export function formatByteSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 export function mergeSettingsPatch(
   current: AppSettings,
@@ -125,6 +176,14 @@ export function mergeSettingsPatch(
   return {
     ...current,
     ...patch,
+    accountHandle:
+      patch.accountHandle !== undefined
+        ? sanitizeAccountHandle(patch.accountHandle)
+        : current.accountHandle,
+    defaultFilenamePrefix:
+      patch.defaultFilenamePrefix !== undefined
+        ? sanitizeFilenamePrefix(patch.defaultFilenamePrefix)
+        : current.defaultFilenamePrefix,
     favoriteTools: mergedFavs,
   };
 }

@@ -5,6 +5,8 @@ import {
   clampPanOffset,
   computeCenteredPlacement,
   computePinchZoomScale,
+  computeRubberBandSwipeOffset,
+  computeSwipePageDelta,
   resizeAnnotationByDelta,
   scaleAnnotationToWidth,
 } from './annotationHelpers';
@@ -112,3 +114,23 @@ test('clampPanOffset resets at 1x zoom and bounds panning when zoomed in', () =>
   assert.ok(zoomed.x <= 220 && zoomed.x > 0);
   assert.ok(zoomed.y >= -290 && zoomed.y < 0);
 });
+
+test('computeSwipePageDelta navigates prev/next on dominant horizontal swipes within bounds', () => {
+  assert.equal(computeSwipePageDelta(-80, 10, 220, 0, 3), 1);
+  assert.equal(computeSwipePageDelta(80, -12, 220, 1, 3), -1);
+  // Fast short flick triggers transition
+  assert.equal(computeSwipePageDelta(-30, 4, 50, 1, 3), 1);
+  // Clamps at boundaries and ignores vertical scrolling
+  assert.equal(computeSwipePageDelta(80, 0, 200, 0, 3), 0);
+  assert.equal(computeSwipePageDelta(-80, 0, 200, 2, 3), 0);
+  assert.equal(computeSwipePageDelta(-40, 60, 200, 1, 3), 0);
+  assert.equal(computeSwipePageDelta(-100, 0, 200, 0, 1), 0);
+});
+
+test('computeRubberBandSwipeOffset applies soft resistance at page boundaries', () => {
+  assert.equal(computeRubberBandSwipeOffset(-100, 0, 3), -100);
+  assert.equal(computeRubberBandSwipeOffset(120, 0, 3), 30);
+  assert.equal(computeRubberBandSwipeOffset(-120, 2, 3), -30);
+  assert.equal(computeRubberBandSwipeOffset(-100, 0, 1), 0);
+});
+

@@ -3,8 +3,6 @@ import {
   ArrowLeft,
   Camera,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Download,
   FileText,
@@ -15,11 +13,12 @@ import {
   Plus,
   ScanText,
   Search,
+  SlidersHorizontal,
   Star,
   Trash2,
   X,
 } from 'lucide-react';
-import type { FolderId, ScanDocument, ScannedPage } from '../types/scanner';
+import type { ScanDocument, ScannedPage } from '../types/scanner';
 import { useHaptics } from '../hooks/useHaptics';
 import {
   getSelectedPageIndices,
@@ -29,6 +28,7 @@ import {
 } from '../utils/projectHelpers';
 import { searchOcrTextMatches } from '../utils/ocrHelpers';
 import { runFreeOcr } from '../utils/ocrEngine';
+import { PROJECT_FOLDER_OPTIONS, ProjectEditModal } from './ProjectEditModal';
 
 interface ProjectDetailsViewProps {
   document: ScanDocument;
@@ -41,14 +41,6 @@ interface ProjectDetailsViewProps {
   onDeleteProject: () => void;
   onBackToLibrary: () => void;
 }
-
-const FOLDER_OPTIONS: Array<{ id: Exclude<FolderId, 'all' | 'starred'>; label: string }> = [
-  { id: 'documents', label: 'Documents' },
-  { id: 'id_cards', label: 'ID Cards' },
-  { id: 'receipts', label: 'Receipts' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'signatures', label: 'Signatures' },
-];
 
 function formatRelativeDate(ts: number): string {
   const diffMin = Math.floor((Date.now() - ts) / 60000);
@@ -78,24 +70,62 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
 
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(document.title);
-  const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [projectEditOpen, setProjectEditOpen] = useState(false);
+
   const [ocrDrawerOpen, setOcrDrawerOpen] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrSearchQuery, setOcrSearchQuery] = useState('');
   const [copiedOcr, setCopiedOcr] = useState(false);
+
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+  // Long-press / long-hover selection timers
+  const pressTimerRef = useRef<number | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+  const pressStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressNextClickRef = useRef(false);
+
+  const isSelecting = selectedIds.length > 0;
 
   useEffect(() => {
     setTitleDraft(document.title);
   }, [document.id, document.title]);
 
   useEffect(() => {
-    // Prune stale selected IDs if pages were deleted/changed
     setSelectedIds((prev) => prev.filter((id) => document.pages.some((p) => p.id === id)));
   }, [document.pages]);
+
+  useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) window.clearTimeout(pressTimerRef.current);
+      if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  const clearSelectionTimers = () => {
+    if (pressTimerRef.current) {
+      window.clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    pressStartRef.current = null;
+  };
+
+  const triggerLongSelect = (pageId: string) => {
+    clearSelectionTimers();
+    suppressNextClickRef.current = true;
+    haptics.tap();
+    setSelectedIds((prev) => (prev.includes(pageId) ? prev : [...prev, pageId]));
+    window.setTimeout(() => {
+      suppressNextClickRef.current = false;
+    }, 350);
+  };
 
   const commitTitle = () => {
     const trimmed = titleDraft.trim();
@@ -105,14 +135,6 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
       setTitleDraft(document.title);
     }
     setEditingTitle(false);
-  };
-
-  const handleMovePage = (idx: number, delta: -1 | 1) => {
-    const target = idx + delta;
-    if (target < 0 || target >= document.pages.length) return;
-    haptics.tap();
-    const nextPages = reorderPageInList(document.pages, idx, target);
-    onUpdateDocument({ ...document, pages: nextPages, updatedAt: Date.now() });
   };
 
   const handleDropPage = (fromIdx: number, toIdx: number) => {
@@ -139,7 +161,6 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
     const nextPages = removeSelectedPages(document.pages, selectedIds, false);
     onUpdateDocument({ ...document, pages: nextPages, updatedAt: Date.now() });
     setSelectedIds([]);
-    setSelectMode(false);
   };
 
   const handleExportSelected = () => {
@@ -240,7 +261,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
         }}
       />
 
-      {/* Sticky Project Top Bar */}
+      {/* Sticky Project Top Bar — Back, Editable Title, Favorite Star, Project Edit & Icon-Only Export */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-6">
           {/* Left: Back to Library + Editable Project Title + Unboxed Metadata */}
@@ -298,7 +319,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
 
               <div className="flex items-center gap-1.5 text-[11px] text-slate-500 truncate">
                 <span className="truncate">
-                  {FOLDER_OPTIONS.find((f) => f.id === document.folder)?.label ?? 'Documents'}
+                  {PROJECT_FOLDER_OPTIONS.find((f) => f.id === document.folder)?.label ?? 'Documents'}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="font-mono-tabular shrink-0">
@@ -314,45 +335,41 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
             </div>
           </div>
 
-          {/* Right: OCR, Select Mode, Export */}
+          {/* Right: Star Favorite, Project Options, Icon-Only Download Export */}
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => {
                 haptics.tap();
-                setOcrDrawerOpen((v) => !v);
+                onToggleStar();
               }}
-              data-testid="project-ocr-btn"
-              aria-pressed={ocrDrawerOpen}
-              className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 text-xs font-semibold transition-colors cursor-pointer ${
-                ocrDrawerOpen
-                  ? 'border-teal-600 bg-teal-50 text-teal-800'
-                  : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+              data-testid="project-star-btn"
+              aria-label={document.starred ? 'Remove project star' : 'Star project'}
+              aria-pressed={document.starred}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border transition-colors cursor-pointer ${
+                document.starred
+                  ? 'border-amber-200 bg-amber-50 text-amber-500'
+                  : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-amber-500'
               }`}
             >
-              <ScanText className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
-              <span className="hidden sm:inline">OCR</span>
+              <Star
+                className={`h-4.5 w-4.5 ${document.starred ? 'fill-amber-400 text-amber-500' : ''}`}
+                aria-hidden="true"
+              />
             </button>
 
             <button
               type="button"
               onClick={() => {
                 haptics.tap();
-                setSelectMode((v) => {
-                  if (v) setSelectedIds([]);
-                  return !v;
-                });
+                setProjectEditOpen(true);
               }}
-              data-testid="project-select-mode-btn"
-              aria-pressed={selectMode}
-              className={`inline-flex h-10 items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 text-xs font-semibold transition-colors cursor-pointer ${
-                selectMode
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
-              }`}
+              data-testid="project-edit-btn"
+              aria-label="Edit project options"
+              title="Project options"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
             >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{selectMode ? 'Done' : 'Select'}</span>
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
             </button>
 
             <button
@@ -362,16 +379,17 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                 onOpenExport();
               }}
               data-testid="project-export-btn"
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-teal-600 px-3 sm:px-4 text-xs font-semibold text-white hover:bg-teal-700 active:scale-[0.98] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+              aria-label="Export project"
+              title="Export"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98] transition-colors cursor-pointer shrink-0"
             >
-              <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Export</span>
+              <Download className="h-4.5 w-4.5" aria-hidden="true" />
             </button>
           </div>
         </div>
 
-        {/* Sub-Bar: Bulk Select Toolbar OR Clean Folder / Star Strip */}
-        {selectMode ? (
+        {/* Contextual Selection Bar — Appears automatically on Long-Hover or Long-Press */}
+        {isSelecting && (
           <div
             data-testid="project-bulk-bar"
             className="border-t border-slate-200 bg-slate-900 text-white"
@@ -396,68 +414,29 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={selectedIds.length === 0}
                   onClick={handleExportSelected}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-teal-600 px-3 text-xs font-semibold text-white hover:bg-teal-500 disabled:opacity-40 cursor-pointer"
+                  aria-label="Export selected pages"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600 text-white hover:bg-teal-500 cursor-pointer"
                 >
-                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Export Selected</span>
+                  <Download className="h-4 w-4" aria-hidden="true" />
                 </button>
                 <button
                   type="button"
-                  disabled={selectedIds.length === 0}
                   onClick={handleDeleteSelected}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600/90 px-3 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-40 cursor-pointer"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-red-600/90 px-3 text-xs font-semibold text-white hover:bg-red-500 cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>
                     {selectedIds.length >= document.pages.length ? 'Delete Project' : 'Delete'}
                   </span>
                 </button>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="border-t border-slate-100 bg-slate-50/80">
-            <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-3 py-1.5 sm:px-6">
-              <p className="text-xs text-slate-500">
-                Tap any page to view full screen, surf pages, or run OCR
-              </p>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <select
-                  aria-label="Project folder"
-                  value={document.folder}
-                  onChange={(e) => {
-                    haptics.tap();
-                    onUpdateDocument({
-                      ...document,
-                      folder: e.target.value as ScanDocument['folder'],
-                      updatedAt: Date.now(),
-                    });
-                  }}
-                  className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 focus:border-teal-600 focus:outline-none cursor-pointer"
-                >
-                  {FOLDER_OPTIONS.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-
                 <button
                   type="button"
-                  onClick={() => {
-                    haptics.tap();
-                    onToggleStar();
-                  }}
-                  aria-label={document.starred ? 'Remove project star' : 'Star project'}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-amber-500 cursor-pointer"
+                  onClick={() => setSelectedIds([])}
+                  aria-label="Exit selection"
+                  className="inline-flex h-8 items-center rounded-lg border border-white/20 px-2.5 text-xs font-semibold text-white/90 hover:bg-white/10 cursor-pointer"
                 >
-                  <Star
-                    className={`h-4 w-4 ${document.starred ? 'fill-amber-400 text-amber-500' : ''}`}
-                    aria-hidden="true"
-                  />
+                  Done
                 </button>
               </div>
             </div>
@@ -484,9 +463,54 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                 key={page.id}
                 data-testid="project-page-card"
                 data-page-index={idx}
-                draggable={!selectMode && document.pages.length > 1}
+                draggable={!isSelecting && document.pages.length > 1}
+                onMouseEnter={() => {
+                  if (isSelecting || draggedIdx !== null) return;
+                  if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+                  hoverTimerRef.current = window.setTimeout(() => {
+                    triggerLongSelect(page.id);
+                  }, 680);
+                }}
+                onMouseLeave={() => {
+                  if (hoverTimerRef.current) {
+                    window.clearTimeout(hoverTimerRef.current);
+                    hoverTimerRef.current = null;
+                  }
+                }}
+                onPointerDown={(e) => {
+                  if (isSelecting) return;
+                  pressStartRef.current = { x: e.clientX, y: e.clientY };
+                  if (pressTimerRef.current) window.clearTimeout(pressTimerRef.current);
+                  pressTimerRef.current = window.setTimeout(() => {
+                    triggerLongSelect(page.id);
+                  }, 440);
+                }}
+                onPointerMove={(e) => {
+                  if (!pressStartRef.current || !pressTimerRef.current) return;
+                  const dist = Math.hypot(
+                    e.clientX - pressStartRef.current.x,
+                    e.clientY - pressStartRef.current.y
+                  );
+                  if (dist > 8) {
+                    window.clearTimeout(pressTimerRef.current);
+                    pressTimerRef.current = null;
+                  }
+                }}
+                onPointerUp={() => {
+                  if (pressTimerRef.current) {
+                    window.clearTimeout(pressTimerRef.current);
+                    pressTimerRef.current = null;
+                  }
+                }}
+                onPointerCancel={() => {
+                  if (pressTimerRef.current) {
+                    window.clearTimeout(pressTimerRef.current);
+                    pressTimerRef.current = null;
+                  }
+                }}
                 onDragStart={(e) => {
-                  if (selectMode || document.pages.length <= 1) return;
+                  clearSelectionTimers();
+                  if (isSelecting || document.pages.length <= 1) return;
                   setDraggedIdx(idx);
                   e.dataTransfer.effectAllowed = 'move';
                   e.dataTransfer.setData('text/plain', String(idx));
@@ -518,7 +542,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                   isDropTarget
                     ? 'border-teal-600 ring-2 ring-teal-500/35 scale-[1.01]'
                     : isSelected
-                      ? 'border-teal-600 ring-2 ring-teal-500/25'
+                      ? 'border-teal-600 ring-2 ring-teal-500/30'
                       : 'border-slate-200/90 hover:border-teal-500/50'
                 } ${isDragging ? 'opacity-50' : ''}`}
               >
@@ -527,15 +551,17 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
+                      if (suppressNextClickRef.current) return;
+                      clearSelectionTimers();
                       haptics.tap();
-                      if (selectMode) {
+                      if (isSelecting) {
                         setSelectedIds((prev) => togglePageSelection(prev, page.id));
                       } else {
                         onOpenPage(idx, 'view');
                       }
                     }}
                     aria-label={
-                      selectMode
+                      isSelecting
                         ? `${isSelected ? 'Deselect' : 'Select'} page ${idx + 1}`
                         : `View page ${idx + 1}`
                     }
@@ -547,6 +573,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                         src={cover}
                         alt={`Page ${idx + 1}`}
                         referrerPolicy="no-referrer"
+                        draggable={false}
                         className={
                           fitContain
                             ? 'h-full w-full object-contain p-1.5 transition-transform duration-200 group-hover:scale-[1.02]'
@@ -560,14 +587,14 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                     )}
                   </button>
 
-                  {/* Top-Right Selection Indicator in Select Mode */}
-                  {selectMode && (
+                  {/* Top-Right Selection Badge when selecting */}
+                  {isSelecting && (
                     <span
                       aria-hidden="true"
-                      className={`pointer-events-none absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+                      className={`pointer-events-none absolute right-3.5 top-3.5 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
                         isSelected
                           ? 'border-teal-600 bg-teal-600 text-white'
-                          : 'border-slate-400 bg-white/90 text-transparent'
+                          : 'border-slate-400 bg-white/95 text-transparent'
                       }`}
                     >
                       <Check className="h-3.5 w-3.5" />
@@ -575,10 +602,10 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                   )}
                 </div>
 
-                {/* Card Footer: Drag Handle + Page Number + OCR Indicator + Quick Actions */}
-                <div className="flex items-center justify-between gap-1 border-t border-slate-100 px-2.5 py-2">
+                {/* Minimal Card Footer: Drag Grip + Page Number + Page Edit / Delete */}
+                <div className="flex items-center justify-between gap-1 border-t border-slate-100 px-2.5 py-1.5">
                   <div className="flex items-center gap-1 min-w-0">
-                    {!selectMode && document.pages.length > 1 && (
+                    {!isSelecting && document.pages.length > 1 && (
                       <GripVertical
                         className="h-3.5 w-3.5 shrink-0 text-slate-300 group-hover:text-slate-500 cursor-grab"
                         aria-hidden="true"
@@ -592,40 +619,18 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                     )}
                   </div>
 
-                  {!selectMode && (
+                  {!isSelecting && (
                     <div className="flex items-center gap-0.5">
-                      {document.pages.length > 1 && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={idx === 0}
-                            onClick={() => handleMovePage(idx, -1)}
-                            aria-label={`Move page ${idx + 1} earlier`}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                          >
-                            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={idx === document.pages.length - 1}
-                            onClick={() => handleMovePage(idx, 1)}
-                            aria-label={`Move page ${idx + 1} later`}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
-                          >
-                            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                          </button>
-                        </>
-                      )}
-
                       <button
                         type="button"
                         onClick={() => {
+                          clearSelectionTimers();
                           haptics.tap();
                           onOpenPage(idx, 'edit');
                         }}
                         aria-label={`Edit page ${idx + 1}`}
                         data-testid={`project-page-edit-${idx}`}
-                        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-teal-50 hover:text-teal-700 cursor-pointer"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-teal-50 hover:text-teal-700 cursor-pointer"
                       >
                         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
@@ -635,7 +640,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
                           type="button"
                           onClick={() => handleDeleteSinglePage(page.id)}
                           aria-label={`Delete page ${idx + 1}`}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -647,6 +652,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
             );
           })}
 
+          {/* Add Page Tile */}
           <div
             data-testid="project-add-page-tile"
             className="flex flex-col overflow-hidden rounded-2xl border-2 border-dashed border-slate-300 bg-white/80 transition-colors hover:border-teal-500 hover:bg-teal-50/25"
@@ -665,7 +671,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
               </span>
               <div>
                 <div className="text-sm font-bold text-slate-800">Add Page</div>
-                <div className="mt-0.5 text-xs text-slate-500">Tap to scan with camera</div>
+                <div className="mt-0.5 text-xs text-slate-500">Tap to scan</div>
               </div>
             </button>
 
@@ -685,21 +691,78 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
         </div>
       </main>
 
-      {/* Bottom-Right Floating Camera Quick-Scan Action */}
-      {!selectMode && (
-        <button
-          type="button"
-          onClick={() => {
-            haptics.tap();
-            onAddPagesWithCamera();
-          }}
-          data-testid="project-fab-scan"
-          aria-label="Scan new page"
-          className="fixed bottom-6 right-5 sm:right-7 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-950/20 hover:bg-teal-700 active:scale-95 transition-all cursor-pointer"
+      {/* Compact Bottom Action Dock: OCR, Project Options, Import Photo, Scan Page */}
+      {!isSelecting && (
+        <div
+          data-testid="project-bottom-bar"
+          className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
         >
-          <Camera className="h-6 w-6" aria-hidden="true" />
-        </button>
+          <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-2 px-3 sm:px-6">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  setOcrDrawerOpen(true);
+                }}
+                data-testid="project-ocr-btn"
+                aria-pressed={ocrDrawerOpen}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+              >
+                <ScanText className="h-4 w-4 text-teal-700" aria-hidden="true" />
+                <span>OCR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  fileInputRef.current?.click();
+                }}
+                className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+              >
+                <ImagePlus className="h-4 w-4 text-slate-600" aria-hidden="true" />
+                <span className="hidden sm:inline">Import Photo</span>
+                <span className="sm:hidden">Import</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  setProjectEditOpen(true);
+                }}
+                className="hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
+                <span>Project Options</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                haptics.shutter();
+                onAddPagesWithCamera();
+              }}
+              data-testid="project-fab-scan"
+              aria-label="Scan new page"
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer shrink-0"
+            >
+              <Camera className="h-4 w-4" aria-hidden="true" />
+              <span>Scan Page</span>
+            </button>
+          </div>
+        </div>
       )}
+
+      {/* Project Edit Modal */}
+      <ProjectEditModal
+        document={projectEditOpen ? document : null}
+        onClose={() => setProjectEditOpen(false)}
+        onSaveChanges={onUpdateDocument}
+        onDeleteProject={() => onDeleteProject()}
+      />
 
       {/* Project-Wide OCR Slide-Over Drawer */}
       {ocrDrawerOpen && (

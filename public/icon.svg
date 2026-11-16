@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="112" fill="#0D9488"/>
+  <rect x="32" y="32" width="448" height="448" rx="88" stroke="#5EEAD4" stroke-opacity="0.28" stroke-width="6"/>
+  <!-- Corner scan viewfinder brackets -->
+  <path d="M128 164V136C128 124.954 136.954 116 148 116H176" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <path d="M336 116H364C375.046 116 384 124.954 384 136V164" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <path d="M384 348V376C384 387.046 375.046 396 364 396H336" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <path d="M176 396H148C136.954 396 128 387.046 128 376V348" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+  <!-- Document sheet -->
+  <rect x="172" y="154" width="168" height="204" rx="22" fill="#FFFFFF"/>
+  <!-- Scan lines inside sheet -->
+  <rect x="202" y="196" width="108" height="16" rx="8" fill="#0F172A" fill-opacity="0.85"/>
+  <rect x="202" y="230" width="84" height="14" rx="7" fill="#64748B" fill-opacity="0.55"/>
+  <rect x="202" y="260" width="96" height="14" rx="7" fill="#64748B" fill-opacity="0.55"/>
+  <!-- Horizontal scanner beam -->
+  <rect x="148" y="294" width="216" height="16" rx="8" fill="#14B8A6"/>
+</svg>

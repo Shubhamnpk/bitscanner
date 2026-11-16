@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Check,
+  Code2,
   Copy,
   FileDown,
   FileText,
   Layers,
   PencilLine,
+  RefreshCw,
   ScanText,
   Search,
   Sparkles,
@@ -42,6 +43,7 @@ interface OcrDocumentViewerProps {
   onRunOcr: () => void;
   onRunOcrAllPages?: () => void;
   onChangeOcrText: (nextText: string) => void;
+  onOpenExport?: () => void;
   onClose: () => void;
 }
 
@@ -89,12 +91,14 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
   onRunOcr,
   onRunOcrAllPages,
   onChangeOcrText,
+  onOpenExport,
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<ReaderTab>('layout');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedEntity, setCopiedEntity] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const structuredBlocks = useMemo(
     () => parseOcrDocumentLayout(ocrText, ocrBlocks),
@@ -133,51 +137,13 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
 
   return (
     <aside
-      role="dialog"
+      role="region"
       aria-label="OCR Document Reader"
       data-testid="ocr-fullscreen-view"
-      className="fixed inset-0 z-50 lg:static lg:z-auto flex w-full lg:w-[440px] shrink-0 flex-col bg-slate-50 lg:bg-white lg:border-l lg:border-slate-200 overflow-hidden"
+      className="absolute inset-0 z-20 lg:static lg:z-auto flex w-full lg:w-[440px] shrink-0 flex-col bg-slate-50 lg:bg-white lg:border-l lg:border-slate-200 overflow-hidden"
     >
-      {/* Top Bar */}
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3.5 py-3 pt-safe">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close OCR view"
-            data-testid="ocr-close-btn"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-95 transition cursor-pointer shrink-0"
-          >
-            <ArrowLeft className="h-4 w-4 lg:hidden" aria-hidden="true" />
-            <X className="h-4 w-4 hidden lg:block" aria-hidden="true" />
-          </button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <ScanText className="h-4 w-4 text-teal-700 shrink-0" aria-hidden="true" />
-              <h2 className="truncate text-sm font-bold text-slate-900">OCR Document View</h2>
-            </div>
-            <p className="truncate text-[11px] text-slate-500 font-mono-tabular">
-              Page {pageNumber} of {totalPages}
-              {wordCount > 0 ? ` · ${wordCount}w` : ''}
-              {typeof ocrConfidence === 'number' && ocrText ? ` · ${ocrConfidence}%` : ''}
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          disabled={ocrRunning}
-          onClick={onRunOcr}
-          data-testid="ocr-extract-btn"
-          className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer"
-        >
-          <ScanText className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{ocrRunning ? `${ocrProgress}%` : ocrText ? 'Re-Scan' : 'Extract Text'}</span>
-        </button>
-      </div>
-
-      {/* Engine Controls + Search + Reader Tabs */}
-      <div className="shrink-0 border-b border-slate-200 bg-white px-3.5 py-2.5 flex flex-col gap-2.5">
+      {/* Compact Engine Controls + Search + Reader Tabs (No redundant header) */}
+      <div className="shrink-0 border-b border-slate-200 bg-white px-3.5 py-2.5 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <select
             value={ocrLang}
@@ -214,6 +180,16 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               </button>
             ))}
           </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close OCR view"
+            data-testid="ocr-close-btn"
+            className="hidden lg:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -344,13 +320,21 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
           >
             {!ocrText.trim() ? (
               <div className="py-10 text-center flex flex-col items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 ${
+                    ocrRunning ? 'animate-pulse' : ''
+                  }`}
+                >
                   <ScanText className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">Ready to Digitize Page</p>
+                  <p className="text-sm font-bold text-slate-900">
+                    {ocrRunning ? 'Recognizing Page Layout...' : 'Ready to Digitize Page'}
+                  </p>
                   <p className="mt-1 max-w-xs text-xs text-slate-500">
-                    Tap Extract Text to recognize headings, tables, amounts, and paragraphs in their exact document layout.
+                    {ocrRunning
+                      ? 'Extracting headings, aligned tables, amounts, and paragraphs from your scan.'
+                      : 'Tap Extract Text to recognize headings, tables, amounts, and paragraphs in their exact document layout.'}
                   </p>
                 </div>
               </div>
@@ -533,9 +517,109 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         )}
       </div>
 
-      {/* Bottom Export Footer */}
-      <div className="shrink-0 border-t border-slate-200 bg-white px-3.5 py-3 pb-safe">
-        <div className="grid grid-cols-3 gap-2">
+      {/* OCR Export Format Sheet (Triggered from Export in Bottom Bar) */}
+      {exportMenuOpen && (
+        <div
+          data-testid="ocr-export-format-sheet"
+          className="shrink-0 border-t border-slate-200 bg-slate-50/95 px-3.5 py-3 animate-sheet-up"
+        >
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-900">Export Extracted OCR</span>
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen(false)}
+              aria-label="Close OCR export formats"
+              className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button
+              type="button"
+              disabled={!ocrText.trim()}
+              data-testid="ocr-export-doc-btn"
+              onClick={() => {
+                exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'doc', structuredBlocks);
+                setExportMenuOpen(false);
+              }}
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+            >
+              <FileText className="h-4 w-4 text-teal-700 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">Word (.doc)</span>
+                <span className="block text-[10px] text-slate-500 truncate">Tables &amp; layout</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={!ocrText.trim()}
+              data-testid="ocr-export-txt-btn"
+              onClick={() => {
+                exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'txt', structuredBlocks);
+                setExportMenuOpen(false);
+              }}
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+            >
+              <FileDown className="h-4 w-4 text-slate-600 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">Plain Text (.txt)</span>
+                <span className="block text-[10px] text-slate-500 truncate">Raw extracted text</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={!ocrText.trim()}
+              data-testid="ocr-export-md-btn"
+              onClick={() => {
+                exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'md', structuredBlocks);
+                setExportMenuOpen(false);
+              }}
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+            >
+              <Code2 className="h-4 w-4 text-slate-600 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <span className="block text-xs font-bold text-slate-900">Markdown (.md)</span>
+                <span className="block text-[10px] text-slate-500 truncate">Formatted tables</span>
+              </div>
+            </button>
+          </div>
+          {onOpenExport && (
+            <button
+              type="button"
+              data-testid="ocr-export-full-btn"
+              onClick={() => {
+                setExportMenuOpen(false);
+                onOpenExport();
+              }}
+              className="mt-2 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+            >
+              <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Export Full Scan (PDF / Image / Word)</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Unified Bottom Action Bar: Re-Scan | Copy | Export */}
+      <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            type="button"
+            disabled={ocrRunning}
+            onClick={onRunOcr}
+            data-testid="ocr-extract-btn"
+            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 text-teal-700 shrink-0 ${ocrRunning ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            <span>{ocrRunning ? `${ocrProgress}%` : ocrText ? 'Re-Scan' : 'Extract'}</span>
+          </button>
+
           <button
             type="button"
             disabled={!ocrText}
@@ -544,41 +628,35 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               setCopiedAll(true);
               window.setTimeout(() => setCopiedAll(false), 1500);
             }}
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
           >
             {copiedAll ? (
               <>
-                <Check className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                <Check className="h-3.5 w-3.5 text-teal-600 shrink-0" aria-hidden="true" />
                 <span>Copied</span>
               </>
             ) : (
               <>
-                <Copy className="h-4 w-4 text-teal-700" aria-hidden="true" />
-                <span>Copy All</span>
+                <Copy className="h-3.5 w-3.5 text-slate-600 shrink-0" aria-hidden="true" />
+                <span>Copy</span>
               </>
             )}
           </button>
+
           <button
             type="button"
-            disabled={!ocrText}
-            onClick={() =>
-              exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'txt', structuredBlocks)
-            }
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+            data-testid="ocr-open-export-btn"
+            onClick={() => setExportMenuOpen((v) => !v)}
+            aria-expanded={exportMenuOpen}
+            className="inline-flex min-h-[42px] flex-[1.2] items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
           >
-            <FileDown className="h-4 w-4 text-slate-600" aria-hidden="true" />
-            <span>.TXT</span>
-          </button>
-          <button
-            type="button"
-            disabled={!ocrText}
-            onClick={() =>
-              exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'doc', structuredBlocks)
-            }
-            className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-teal-600 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-40 cursor-pointer"
-          >
-            <FileDown className="h-4 w-4" aria-hidden="true" />
-            <span>Word .DOC</span>
+            <FileDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>
+              Export
+              {wordCount > 0 && typeof ocrConfidence === 'number' && !ocrRunning
+                ? ` · ${ocrConfidence}%`
+                : ''}
+            </span>
           </button>
         </div>
       </div>

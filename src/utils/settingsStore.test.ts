@@ -2,28 +2,47 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_APP_SETTINGS,
-  TOOLS_CATALOG,
+  formatByteSize,
   mergeSettingsPatch,
+  sanitizeAccountHandle,
+  sanitizeFilenamePrefix,
   toggleFavoriteToolInList,
 } from './settingsStore';
 
-test('toggleFavoriteToolInList toggles tool IDs cleanly without mutation', () => {
-  const start = ['images_to_pdf', 'pp_size'] as const;
-  const added = toggleFavoriteToolInList([...start], 'merge_pdf');
-  assert.deepEqual(added, ['images_to_pdf', 'pp_size', 'merge_pdf']);
-  const removed = toggleFavoriteToolInList(added, 'pp_size');
-  assert.deepEqual(removed, ['images_to_pdf', 'merge_pdf']);
-  assert.equal(start.length, 2);
+test('sanitizeAccountHandle normalizes handle safely', () => {
+  assert.equal(sanitizeAccountHandle('  @Shubham_Nirula! '), '@shubham_nirula');
+  assert.equal(sanitizeAccountHandle('   '), '@bitscan_user');
 });
 
-test('mergeSettingsPatch updates settings and strips unknown favorite tool IDs', () => {
+test('sanitizeFilenamePrefix strips unsafe filename characters', () => {
+  assert.equal(sanitizeFilenamePrefix('Work/Scan: 2026'), 'WorkScan2026');
+  assert.equal(sanitizeFilenamePrefix('***'), 'Scan_');
+});
+
+test('formatByteSize formats B, KB, and MB cleanly', () => {
+  assert.equal(formatByteSize(0), '0 KB');
+  assert.equal(formatByteSize(512), '512 B');
+  assert.equal(formatByteSize(2048), '2.0 KB');
+  assert.equal(formatByteSize(2 * 1024 * 1024), '2.00 MB');
+});
+
+test('mergeSettingsPatch updates local account & validates favoriteTools', () => {
   const next = mergeSettingsPatch(DEFAULT_APP_SETTINGS, {
-    hapticsEnabled: false,
-    defaultPaperSize: 'letter',
-    favoriteTools: ['pp_size', 'unknown_tool' as never],
+    displayName: 'Alex Morgan',
+    accountHandle: 'Alex_M',
+    hasCompletedOnboarding: true,
+    favoriteTools: ['images_to_pdf', 'invalid_tool' as never],
   });
-  assert.equal(next.hapticsEnabled, false);
-  assert.equal(next.defaultPaperSize, 'letter');
-  assert.deepEqual(next.favoriteTools, ['pp_size']);
-  assert.ok(TOOLS_CATALOG.length >= 8);
+
+  assert.equal(next.displayName, 'Alex Morgan');
+  assert.equal(next.accountHandle, '@alex_m');
+  assert.equal(next.hasCompletedOnboarding, true);
+  assert.deepEqual(next.favoriteTools, ['images_to_pdf']);
+});
+
+test('toggleFavoriteToolInList toggles without duplicates', () => {
+  const once = toggleFavoriteToolInList(['images_to_pdf'], 'merge_pdf');
+  assert.deepEqual(once, ['images_to_pdf', 'merge_pdf']);
+  const twice = toggleFavoriteToolInList(once, 'images_to_pdf');
+  assert.deepEqual(twice, ['merge_pdf']);
 });

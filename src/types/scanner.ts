@@ -143,7 +143,11 @@ export type ActiveWorkspaceView =
   | 'id_studio'
   | 'tools'
   | 'profile'
-  | 'settings';
+  | 'settings'
+  | 'about'
+  | 'release_notes'
+  | 'privacy'
+  | 'help';
 
 export const DEFAULT_ADJUSTMENTS: ImageAdjustments = {
   brightness: 0,

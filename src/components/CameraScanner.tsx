@@ -49,6 +49,8 @@ interface CameraScannerProps {
   initialFiles?: File[] | null;
   appendTargetDocId?: string | null;
   defaultFilter?: FilterPreset;
+  autoEdgeDetect?: boolean;
+  defaultFilenamePrefix?: string;
   onClose: () => void;
   onCompletePages: (
     pages: ScannedPage[],
@@ -94,6 +96,8 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   initialFiles = null,
   appendTargetDocId = null,
   defaultFilter = 'magic_color',
+  autoEdgeDetect = true,
+  defaultFilenamePrefix = 'Scan_',
   onClose,
   onCompletePages,
   onCompleteIdPair,
@@ -110,7 +114,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [gridEnabled, setGridEnabled] = useState(true);
-  const [liveEdgeOn, setLiveEdgeOn] = useState(true);
+  const [liveEdgeOn, setLiveEdgeOn] = useState(autoEdgeDetect);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [shutterFlash, setShutterFlash] = useState(false);
@@ -293,7 +297,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 reader.readAsDataURL(file);
               });
               if (!dataUrl || cancelled) continue;
-              const quad = await detectCornersFromDataUrl(dataUrl);
+              const quad: QuadCorners = autoEdgeDetect
+                ? await detectCornersFromDataUrl(dataUrl)
+                : [
+                    { x: 0.04, y: 0.04 },
+                    { x: 0.96, y: 0.04 },
+                    { x: 0.96, y: 0.96 },
+                    { x: 0.04, y: 0.96 },
+                  ];
               if (cancelled) return;
               added.push({
                 id: crypto.randomUUID(),
@@ -513,7 +524,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const ingestCapturedUrl = async (dataUrl: string, label: string, stayInCameraIfMulti: boolean) => {
     setDetecting(true);
     try {
-      const detectedQuad = await detectCornersFromDataUrl(dataUrl);
+      const detectedQuad: QuadCorners = autoEdgeDetect
+        ? await detectCornersFromDataUrl(dataUrl)
+        : [
+            { x: 0.04, y: 0.04 },
+            { x: 0.96, y: 0.04 },
+            { x: 0.96, y: 0.96 },
+            { x: 0.04, y: 0.96 },
+          ];
       const item: QueuedCapture = {
         id: crypto.randomUUID(),
         label,
@@ -615,7 +633,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           reader.readAsDataURL(file);
         });
         if (!dataUrl) continue;
-        const quad = await detectCornersFromDataUrl(dataUrl);
+        const quad: QuadCorners = autoEdgeDetect
+          ? await detectCornersFromDataUrl(dataUrl)
+          : [
+              { x: 0.04, y: 0.04 },
+              { x: 0.96, y: 0.04 },
+              { x: 0.96, y: 0.96 },
+              { x: 0.04, y: 0.96 },
+            ];
         added.push({
           id: crypto.randomUUID(),
           label: file.name.replace(/\.[^.]+$/, '') || 'Uploaded Scan',
@@ -762,7 +787,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
       const autoTitle =
         queue[0].label ||
-        `Scan ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+        `${defaultFilenamePrefix}${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).replace(/\s+/g, '_')}`;
       const autoFolder: ScanDocument['folder'] =
         scanMode === 'book' ? 'notes' : scanMode === 'id_card' ? 'id_cards' : 'documents';
 
