@@ -1,0 +1,10 @@
+{
+  "name": "bitscanner",
+  "description": "Free open-source document scanner, ID card maker, perspective auto-cropper, image enhancer, OCR extractor, and multi-page PDF studio.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
