@@ -73,17 +73,57 @@ function splitMarkdownSections(body: string | null): ReleaseSection[] {
   return fallbackItems.length > 0 ? [{ title: 'Highlights', items: fallbackItems, tone: 'new' }] : [];
 }
 
+export function extractSummary(body: string | null): string {
+  if (!body) return 'No release notes were provided.';
+  const lines = body.trim().split(/\r?\n/);
+  const introLines: string[] = [];
+  for (const line of lines) {
+    if (/^#{1,6}\s+/.test(line)) break;
+    if (line.trim()) {
+      introLines.push(line.trim());
+    } else if (introLines.length > 0) {
+      break;
+    }
+  }
+  return introLines.join(' ') || lines[0] || 'No release notes were provided.';
+}
+
+export function extractComments(body: string | null): string[] {
+  if (!body) return [];
+  const lines = body.split(/\r?\n/);
+  let inNotes = false;
+  const comments: string[] = [];
+  for (const line of lines) {
+    if (/^#{2,4}\s+notes/i.test(line)) {
+      inNotes = true;
+      continue;
+    }
+    if (inNotes) {
+      if (/^#{1,4}\s+/.test(line) || /^[*_]{3,}/.test(line) || /^\*\*Full Changelog/i.test(line)) {
+        break;
+      }
+      const trimmed = line.replace(/^\s*[-*+]\s+/, '').trim();
+      if (trimmed) {
+        comments.push(trimmed);
+      }
+    }
+  }
+  return comments;
+}
+
 export function mapGithubReleaseToEntry(release: GithubRelease): ReleaseEntry {
   const version = release.tag_name.replace(/^v/i, '');
   const title =
     release.name?.trim() ||
     (version === '0.0.1' ? 'First public release' : `Release ${version}`);
   const sections = splitMarkdownSections(release.body);
+  const summary = extractSummary(release.body);
+  const comments = extractComments(release.body);
   return {
     version,
     date: formatDate(release.published_at),
     title,
-    summary: release.body?.trim() || 'No release notes were provided.',
+    summary,
     sections:
       sections.length > 0
         ? sections
@@ -94,7 +134,10 @@ export function mapGithubReleaseToEntry(release: GithubRelease): ReleaseEntry {
               tone: 'new',
             },
           ],
-    comments: [],
+    comments:
+      comments.length > 0
+        ? comments
+        : ['Release notes parsed from GitHub releases.'],
   };
 }
 
