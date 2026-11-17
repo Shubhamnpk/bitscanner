@@ -26,7 +26,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'Img to PDF',
     description: 'Combine photos or scans into one multi-page PDF with drag reorder.',
     category: 'pdf',
-    accentClass: 'bg-teal-50 text-teal-700 border-teal-200',
+    accentClass: 'bg-teal-500/10 text-teal-400 border-transparent',
   },
   {
     id: 'pdf_to_images',
@@ -34,7 +34,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'PDF to Img',
     description: 'Extract every page of any PDF file into crisp PNG or JPEG images.',
     category: 'pdf',
-    accentClass: 'bg-sky-50 text-sky-700 border-sky-200',
+    accentClass: 'bg-sky-500/10 text-sky-400 border-transparent',
   },
   {
     id: 'pp_size',
@@ -42,7 +42,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'PP Size',
     description: 'Create standard 35x45mm or 2x2in portrait photos & cut-ready sheets.',
     category: 'photo',
-    accentClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    accentClass: 'bg-indigo-500/10 text-indigo-400 border-transparent',
   },
   {
     id: 'id_card',
@@ -50,7 +50,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'ID Card',
     description: 'Align Front & Back card photos onto an ISO A4 printable sheet.',
     category: 'photo',
-    accentClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    accentClass: 'bg-emerald-500/10 text-emerald-400 border-transparent',
   },
   {
     id: 'merge_pdf',
@@ -58,7 +58,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'Merge PDF',
     description: 'Combine multiple PDF documents cleanly into one unified file.',
     category: 'pdf',
-    accentClass: 'bg-amber-50 text-amber-700 border-amber-200',
+    accentClass: 'bg-amber-500/10 text-amber-400 border-transparent',
   },
   {
     id: 'ocr_extract',
@@ -66,7 +66,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'OCR Text',
     description: 'Recognize, search, and copy printed text from any photo or scan.',
     category: 'smart',
-    accentClass: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    accentClass: 'bg-cyan-500/10 text-cyan-400 border-transparent',
   },
   {
     id: 'sign_doc',
@@ -74,7 +74,7 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'Sign Doc',
     description: 'Draw or type reusable signatures with custom paper backgrounds.',
     category: 'smart',
-    accentClass: 'bg-violet-50 text-violet-700 border-violet-200',
+    accentClass: 'bg-violet-500/10 text-violet-400 border-transparent',
   },
   {
     id: 'images_to_video',
@@ -82,11 +82,16 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     shortLabel: 'Make Video',
     description: 'Turn multi-page scans or photos into a smooth playable video clip.',
     category: 'smart',
-    accentClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    accentClass: 'bg-rose-500/10 text-rose-400 border-transparent',
   },
 ];
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
+export const THEME_MODES: ThemeMode[] = ['system', 'light', 'dark'];
+
 export interface AppSettings {
+  theme: ThemeMode;
   displayName: string;
   email: string;
   accountHandle: string;
@@ -119,9 +124,10 @@ export const AVATAR_COLOR_OPTIONS = [
   { id: '#e11d48', label: 'Rose' },
 ] as const;
 
-export const APP_VERSION = '0.0.3';
+export const APP_VERSION = '0.0.1';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
+  theme: 'system',
   displayName: 'Local Workspace',
   email: 'offline@bitscan.local',
   accountHandle: '@bitscan_user',
@@ -176,6 +182,10 @@ export function mergeSettingsPatch(
   return {
     ...current,
     ...patch,
+    theme:
+      patch.theme !== undefined && THEME_MODES.includes(patch.theme)
+        ? patch.theme
+        : current.theme,
     accountHandle:
       patch.accountHandle !== undefined
         ? sanitizeAccountHandle(patch.accountHandle)

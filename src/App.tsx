@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   ActiveWorkspaceView,
   FolderId,
@@ -12,10 +12,13 @@ import {
   deleteDocumentFromDb,
   deleteSignatureFromDb,
   ensureSeedDocuments,
+  buildSampleDocuments,
+  loadAllDocuments,
   loadAllSignatures,
   resetWorkspaceDb,
   saveDocumentToDb,
   saveSignatureToDb,
+  setPersistenceEnabled,
 } from './utils/storage';
 import {
   loadAppSettings,
@@ -49,6 +52,8 @@ import {
   processPagePipeline,
   renderPageThumbnail,
 } from './utils/imageProcessor';
+import { applyBrowserThemeColor, applyThemeClass, resolveTheme } from './utils/theme';
+import { DemoModeBanner } from './components/DemoModeBanner';
 
 export default function App() {
   const [documents, setDocuments] = useState<ScanDocument[]>([]);
@@ -89,6 +94,13 @@ export default function App() {
   const [librarySignatureModalOpen, setLibrarySignatureModalOpen] = useState(false);
   const [kotlinModalOpen, setKotlinModalOpen] = useState(false);
 
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+  const liveWorkspaceRef = useRef<{ documents: ScanDocument[]; signatures: SavedSignature[] } | null>(
+    null
+  );
+  const demoDocumentsRef = useRef<ScanDocument[] | null>(null);
+
   const isAutostartBypass =
     typeof window !== 'undefined' &&
     new URLSearchParams(window.location.search).get('autostart') === '1';
@@ -112,6 +124,73 @@ export default function App() {
       mounted = false;
     };
   }, []);
+
+  // Theme: follow the OS when set to "system", otherwise apply the explicit choice.
+  useEffect(() => {
+    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const sync = () => {
+      const resolved = resolveTheme(appSettings.theme, media?.matches ?? false);
+      applyThemeClass(resolved);
+      applyBrowserThemeColor(resolved);
+    };
+    sync();
+    media?.addEventListener?.('change', sync);
+    return () => media?.removeEventListener?.('change', sync);
+  }, [appSettings.theme]);
+
+  const enterDemoMode = async () => {
+    if (demoMode || demoLoading) return;
+    setDemoLoading(true);
+    liveWorkspaceRef.current = { documents, signatures: savedSignatures };
+    try {
+      if (!demoDocumentsRef.current) {
+        demoDocumentsRef.current = await buildSampleDocuments();
+      }
+      setPersistenceEnabled(false);
+      setDocuments(demoDocumentsRef.current);
+      setSavedSignatures([]);
+      setDemoMode(true);
+      setDraftDocument(null);
+      setActiveDocId(null);
+      setActiveView('library');
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
+  const exitDemoMode = async () => {
+    if (!demoMode) return;
+    setPersistenceEnabled(true);
+    setDemoMode(false);
+    setDraftDocument(null);
+    setActiveDocId(null);
+    setActiveView('library');
+    const snapshot = liveWorkspaceRef.current;
+    liveWorkspaceRef.current = null;
+    if (snapshot) {
+      setDocuments(snapshot.documents);
+      setSavedSignatures(snapshot.signatures);
+    } else {
+      const [docs, sigs] = await Promise.all([loadAllDocuments(), loadAllSignatures()]);
+      setDocuments(docs);
+      setSavedSignatures(sigs);
+    }
+  };
+
+  // Ctrl/Cmd + Shift + D toggles the demo workspace from anywhere.
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
+      if (event.key.toLowerCase() !== 'd') return;
+      event.preventDefault();
+      if (demoMode) void exitDemoMode();
+      else void enterDemoMode();
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+    // The handlers close over documents/signatures on purpose: they snapshot them at toggle time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, demoLoading, documents, savedSignatures]);
 
   const handleUpdateSettings = (patch: Partial<AppSettings>) => {
     setAppSettings((prev) => {
@@ -436,6 +515,12 @@ export default function App() {
   };
 
   const handleResetLocalWorkspace = async () => {
+    if (demoMode) {
+      setDocuments(await buildSampleDocuments());
+      setSavedSignatures([]);
+      setActiveView('library');
+      return;
+    }
     const docs = await resetWorkspaceDb();
     setDocuments(docs);
     setSavedSignatures([]);
@@ -443,6 +528,35 @@ export default function App() {
     setActiveDocId(null);
     setLibraryInitialFolder('all');
     setActiveView('library');
+  };
+
+  /**
+   * Merges an imported backup into the live workspace: matching IDs replace the
+   * existing record, everything else is appended. Nothing is deleted.
+   */
+  const handleImportWorkspace = async (
+    importedDocuments: ScanDocument[],
+    importedSignatures: SavedSignature[]
+  ) => {
+    const documentsById = new Map(documents.map((doc) => [doc.id, doc]));
+    for (const doc of importedDocuments) documentsById.set(doc.id, doc);
+    const nextDocuments = Array.from(documentsById.values()).sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
+
+    const signaturesById = new Map(savedSignatures.map((sig) => [sig.id, sig]));
+    for (const sig of importedSignatures) signaturesById.set(sig.id, sig);
+    const nextSignatures = Array.from(signaturesById.values()).sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
+
+    setDocuments(nextDocuments);
+    setSavedSignatures(nextSignatures);
+
+    await Promise.all([
+      ...importedDocuments.map((doc) => saveDocumentToDb(doc)),
+      ...importedSignatures.map((sig) => saveSignatureToDb(sig)),
+    ]);
   };
 
   const navigateTopOrBottom = (view: ActiveWorkspaceView) => {
@@ -597,7 +711,11 @@ export default function App() {
       ) : activeView === 'settings' ? (
         <SettingsView
           settings={appSettings}
+          documents={documents}
+          savedSignatures={savedSignatures}
           onUpdateSettings={handleUpdateSettings}
+          onImportWorkspace={handleImportWorkspace}
+          onResetLocalWorkspace={handleResetLocalWorkspace}
           onReplayOnboarding={() => setOnboardingReplayOpen(true)}
           onBackToProfile={() => setActiveView('profile')}
         />
@@ -714,6 +832,10 @@ export default function App() {
         isOpen={kotlinModalOpen}
         onClose={() => setKotlinModalOpen(false)}
       />
+
+      {(demoMode || demoLoading) && (
+        <DemoModeBanner loading={demoLoading} onExit={() => void exitDemoMode()} />
+      )}
     </div>
   );
 }

@@ -1,18 +1,22 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
   Cpu,
+  Download,
+  FileText,
   HelpCircle,
   History,
   Info,
   Keyboard,
   Lock,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import type { ActiveWorkspaceView } from '../types/scanner';
 import { APP_VERSION } from '../utils/settingsStore';
+import { RELEASES, type ReleaseEntry } from '../utils/releaseNotes';
+import { fetchGithubReleases } from '../utils/githubReleases';
 import { useHaptics } from '../hooks/useHaptics';
 
 export type InfoPageId = Extract<
@@ -33,34 +37,30 @@ const INFO_TABS: Array<{ id: InfoPageId; label: string; icon: React.FC<{ classNa
   { id: 'help', label: 'Help', icon: HelpCircle },
 ];
 
-const RELEASE_HISTORY = [
+const ABOUT_FEATURES = [
   {
-    version: '0.0.3',
-    date: 'Latest Studio Release',
-    highlights: [
-      'Progressive Web App (PWA) installable offline workspace with Workbox caching & status indicator.',
-      'Project Details overhaul: drag-and-drop page reordering, long-press/long-hover multi-select, header Favorite Star & bottom-bar OCR.',
-      'Icon-only Download Export buttons across Project Details, View Mode & Edit Mode.',
-      'Redesigned mobile-first Tools hub, customizable local account profiles, Onboarding wizard & Release Notes.',
-    ],
+    title: 'On-device computer vision',
+    body: 'Edge detection, perspective dewarping, glare and shadow correction, and crisp B&W thresholding run locally with zero server round-trips.',
+    icon: Cpu,
+    accent: 'bg-teal-50 text-teal-700',
   },
   {
-    version: '0.0.2',
-    date: 'Document Studio Update',
-    highlights: [
-      'Touch-friendly signature, text & shape markup dragging without accidental box resize.',
-      'Swipe navigation across pages in View & Edit modes with clean page indicators.',
-      'Passport Photo Print Sheet creator & WebM Slideshow Video builder inside Tools.',
-    ],
+    title: 'Offline PWA architecture',
+    body: 'Install on Android, iOS, macOS or Windows. Projects live in IndexedDB and a service worker caches the app shell.',
+    icon: ShieldCheck,
+    accent: 'bg-emerald-50 text-emerald-700',
   },
   {
-    version: '0.0.1',
-    date: 'OCR & Export Engine',
-    highlights: [
-      'Layout-preserving OCR table & structured block extraction with multi-language packs.',
-      'Unified PDF, PNG/JPEG (stitched or individual), and Word (.doc) multi-page export.',
-      'ID Card Studio A4 front/back alignment & dual-crop pipeline.',
-    ],
+    title: 'Layout-aware OCR',
+    body: 'Text recognition keeps headings, tables and columns intact, so extracted text stays readable and searchable.',
+    icon: FileText,
+    accent: 'bg-sky-50 text-sky-700',
+  },
+  {
+    title: 'Multi-format export',
+    body: 'Export searchable PDFs, stitched or single PNG/JPEG pages, and editable Word documents without leaving the browser.',
+    icon: Download,
+    accent: 'bg-amber-50 text-amber-700',
   },
 ];
 
@@ -70,15 +70,61 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
   onBackToProfile,
 }) => {
   const haptics = useHaptics();
+  const [releases, setReleases] = useState<ReleaseEntry[]>(RELEASES);
+  const [selectedVersion, setSelectedVersion] = useState(RELEASES[0].version);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sourceLabel, setSourceLabel] = useState('Local release notes');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const fetched = await fetchGithubReleases(controller.signal);
+        if (fetched.length > 0) {
+          setReleases(fetched);
+          setSelectedVersion(fetched[0].version);
+          setSourceLabel('GitHub releases');
+        }
+      } catch {
+        setSourceLabel('Local fallback');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void load();
+    return () => controller.abort();
+  }, []);
+
+  const activeRelease = useMemo(
+    () => releases.find((release) => release.version === selectedVersion) ?? releases[0],
+    [releases, selectedVersion],
+  );
+
+  const refreshFromGithub = async () => {
+    haptics.tap();
+    setIsLoading(true);
+    try {
+      const fetched = await fetchGithubReleases();
+      if (fetched.length > 0) {
+        setReleases(fetched);
+        setSelectedVersion(fetched[0].version);
+        setSourceLabel('GitHub releases');
+      }
+    } catch {
+      setSourceLabel('Local fallback');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div
       data-testid={`info-page-${page}`}
       className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-4 pb-24 sm:p-6 lg:p-8"
     >
-      {/* Top Back Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3.5">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3.5">
+        <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={() => {
@@ -86,12 +132,12 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
               onBackToProfile();
             }}
             data-testid="info-back-profile-btn"
-            className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            aria-label="Back to profile"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Profile</span>
           </button>
-          <h1 className="text-lg font-bold text-slate-900">
+          <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">
             {page === 'about'
               ? 'About bitscanner'
               : page === 'release_notes'
@@ -102,12 +148,11 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
           </h1>
         </div>
 
-        <span className="font-mono-tabular text-xs font-semibold text-teal-700">
+        <span className="font-mono-tabular hidden shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 sm:inline">
           v{APP_VERSION}
         </span>
       </div>
 
-      {/* Sub-page Switcher */}
       <nav aria-label="App information sections" className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
         {INFO_TABS.map((t) => {
           const Icon = t.icon;
@@ -133,86 +178,216 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
         })}
       </nav>
 
-      {/* PAGE: ABOUT */}
       {page === 'about' && (
-        <div className="flex flex-col gap-4">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-xs">
-                <Sparkles className="h-6 w-6" aria-hidden="true" />
+        <div className="flex flex-col gap-3.5">
+          <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-50 via-white to-sky-50/70" aria-hidden="true" />
+            <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-teal-200/25 blur-3xl" aria-hidden="true" />
+
+            <div className="relative p-4 sm:p-5">
+              <div className="flex items-start gap-3.5">
+                <img
+                  src="/icon.svg"
+                  alt=""
+                  aria-hidden="true"
+                  className="h-14 w-14 shrink-0 rounded-2xl shadow-md ring-4 ring-white/80"
+                />
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold tracking-tight text-slate-900">bitscanner</h2>
+                  <p className="text-xs text-slate-500">
+                    Offline document scanner &amp; PDF workspace
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="font-mono-tabular inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                      v{APP_VERSION}
+                    </span>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50/90 px-2 py-0.5 text-[11px] font-semibold text-teal-800">
+                      <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                      On-device
+                    </span>
+                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                      No account
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">bitscanner Studio</h2>
-                <p className="text-xs text-slate-500">
-                  Version {APP_VERSION} · Offline Document Scanner &amp; PDF Workspace
-                </p>
+
+              <p className="mt-4 text-sm leading-relaxed text-slate-600">
+                bitscanner turns phone cameras and uploaded images into sharp, flat, searchable
+                documents. Perspective correction, Magic Color enhancement, layout-aware OCR,
+                e-signatures, and multi-format PDF/Word export all execute directly in your browser.
+              </p>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {['React 19', 'Vite', 'Tailwind CSS 4', 'Tesseract.js', 'IndexedDB'].map(
+                  (tech) => (
+                    <span
+                      key={tech}
+                      className="rounded-lg border border-slate-200/80 bg-white/80 px-2 py-1 text-[11px] font-medium text-slate-600"
+                    >
+                      {tech}
+                    </span>
+                  )
+                )}
               </div>
             </div>
-            <p className="mt-4 text-sm leading-relaxed text-slate-600">
-              bitscanner turns phone cameras and uploaded images into sharp, flat, searchable
-              documents. Perspective correction, Magic Color enhancement, layout-aware OCR,
-              e-signatures, and multi-format PDF/Word export all execute directly in your browser.
-            </p>
           </section>
 
           <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                <Cpu className="h-4 w-4 text-teal-600" aria-hidden="true" />
-                <span>On-Device Computer Vision</span>
-              </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Edge detection, adaptive perspective dewarping, glare/shadow compensation, and crisp
-                B&amp;W thresholding run locally with zero server round-trips.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-900">
-                <ShieldCheck className="h-4 w-4 text-teal-600" aria-hidden="true" />
-                <span>Offline PWA Architecture</span>
-              </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                Installable on Android, iOS, macOS, and Windows with IndexedDB project storage and
-                background service-worker caching.
-              </p>
-            </div>
+            {ABOUT_FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.title}
+                  className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+                >
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${feature.accent}`}>
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-slate-900">{feature.title}</div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-500">{feature.body}</p>
+                  </div>
+                </div>
+              );
+            })}
           </section>
+
+          <div className="flex items-start gap-2.5 rounded-2xl border border-teal-200 bg-teal-50/70 px-4 py-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+            <p className="text-xs leading-relaxed text-teal-900">
+              No account. No cloud. No tracking. Every scan, signature and OCR result stays inside
+              this browser.
+            </p>
+          </div>
         </div>
       )}
 
-      {/* PAGE: RELEASE NOTES */}
       {page === 'release_notes' && (
         <div className="flex flex-col gap-3.5">
-          {RELEASE_HISTORY.map((rel) => (
-            <section
-              key={rel.version}
-              className="rounded-2xl border border-slate-200 bg-white p-5"
+          <div className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-slate-700">
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+                {isLoading ? 'Refreshing...' : 'Release source'}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                {sourceLabel}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={refreshFromGithub}
+              className="min-h-8 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
             >
-              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono-tabular text-sm font-bold text-teal-700">
-                    v{rel.version}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-500">· {rel.date}</span>
+              Refresh
+            </button>
+          </div>
+
+          <div className="grid gap-3.5 md:grid-cols-[180px_minmax(0,1fr)]">
+            <aside className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <History className="h-3.5 w-3.5" aria-hidden="true" />
+                Versions
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {releases.map((release) => {
+                  const active = release.version === activeRelease.version;
+                  return (
+                    <button
+                      key={release.version}
+                      type="button"
+                      onClick={() => {
+                        haptics.tap();
+                        setSelectedVersion(release.version);
+                      }}
+                      className={`min-h-9 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                        active
+                          ? 'border-teal-200 bg-teal-50 text-teal-900'
+                          : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="font-mono-tabular block">v{release.version}</span>
+                      <span className="mt-0.5 block text-[11px] font-medium text-slate-500">{release.date}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="flex flex-col gap-2 border-b border-slate-100 bg-gradient-to-br from-slate-50 to-white p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800">
+                      v{activeRelease.version}
+                    </span>
+                    {activeRelease.version === '0.0.1' && (
+                      <span className="inline-flex items-center rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Latest</span>
+                    )}
+                    <span className="text-xs font-medium text-slate-500">{activeRelease.date}</span>
+                  </div>
+                  <h2 className="mt-2 text-base font-bold text-slate-900">{activeRelease.title}</h2>
+                  <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-600">{activeRelease.summary}</p>
+                </div>
+                <a
+                  href={`https://github.com/Shubhamnpk/bitscanner/releases/tag/v${activeRelease.version}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  GitHub release
+                </a>
+              </div>
+
+              <div className="p-4 sm:p-5">
+                <div className="flex flex-col gap-3">
+                  {activeRelease.sections.map((section) => (
+                    <div key={section.title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <h3 className="text-xs font-bold text-slate-900">{section.title}</h3>
+                      <ul className="mt-2 flex flex-col gap-2">
+                        {section.items.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-xs leading-relaxed text-slate-700">
+                            <CheckCircle2
+                              className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${section.tone === 'fix' ? 'text-sky-600' : section.tone === 'improvement' ? 'text-emerald-600' : 'text-teal-600'}`}
+                              aria-hidden="true"
+                            />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 border-t border-slate-100 pt-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-xs font-bold text-slate-900">Comments</h3>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                      {activeRelease.comments.length}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-col gap-2">
+                    {activeRelease.comments.map((comment, idx) => (
+                      <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">B</span>
+                          <div>
+                            <div className="text-[11px] font-semibold text-slate-900">bitscanner team</div>
+                            <div className="text-[10px] text-slate-500">Release note</div>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">{comment}</p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <ul className="mt-3 flex flex-col gap-2">
-                {rel.highlights.map((item, idx) => (
-                  <li key={idx} className="flex items-start gap-2.5 text-xs leading-relaxed text-slate-700">
-                    <CheckCircle2
-                      className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600"
-                      aria-hidden="true"
-                    />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
             </section>
-          ))}
+          </div>
         </div>
       )}
 
-      {/* PAGE: PRIVACY */}
       {page === 'privacy' && (
         <section className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5">
           <div className="flex items-center gap-2.5">
@@ -238,14 +413,13 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
             </p>
             <p>
               <strong className="text-slate-900">Clearing Data:</strong> You can delete individual
-              projects, or reset the entire local workspace from Profile &rarr; Reset Sample
-              Documents.
+              projects, or erase the entire local workspace from Profile &rarr; Danger zone →
+              Erase local workspace.
             </p>
           </div>
         </section>
       )}
 
-      {/* PAGE: HELP */}
       {page === 'help' && (
         <div className="flex flex-col gap-4">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">

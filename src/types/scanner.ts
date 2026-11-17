@@ -11,6 +11,7 @@ export type QuadCorners = [Point2D, Point2D, Point2D, Point2D];
 export type FilterPreset =
   | 'original'
   | 'magic_color'
+  | 'magic_hd'
   | 'lighten'
   | 'grayscale'
   | 'bw'

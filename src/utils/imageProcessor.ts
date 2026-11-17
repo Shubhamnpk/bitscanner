@@ -16,6 +16,7 @@ import {
   detectDocumentQuadFromRgba,
   estimateOutputDimensions,
 } from './cvGeometry';
+import { applyPaperFinish, estimatePaperGains } from './magicColor';
 
 export function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -646,11 +647,13 @@ export async function processPagePipeline(
 
   // Shadow removal map (used by shadow_remove, magic_color, or explicit slider)
   const effectiveShadowStrength =
-    filter === 'shadow_remove'
-      ? Math.max(85, adjustments.shadowRemoval)
-      : filter === 'magic_color'
-        ? Math.max(72, adjustments.shadowRemoval)
-        : adjustments.shadowRemoval;
+    filter === 'magic_hd'
+      ? 100
+      : filter === 'shadow_remove'
+        ? Math.max(85, adjustments.shadowRemoval)
+        : filter === 'magic_color'
+          ? Math.max(72, adjustments.shadowRemoval)
+          : adjustments.shadowRemoval;
 
   if (effectiveShadowStrength > 0) {
     const bg = computeIlluminationMap(data, w, h);
@@ -674,6 +677,11 @@ export async function processPagePipeline(
     presetContrast = 28;
     presetSaturation = 24;
     presetGamma = 0.92;
+  } else if (filter === 'magic_hd') {
+    // The paper finish below does the heavy lifting, so keep this gentle.
+    presetContrast = 16;
+    presetSaturation = 18;
+    presetGamma = 0.98;
   } else if (filter === 'lighten') {
     presetContrast = 12;
     presetGamma = 0.72;
@@ -727,9 +735,14 @@ export async function processPagePipeline(
     }
   }
 
+  // Magic Color HD: neutralise the paper cast and separate ink from paper.
+  if (filter === 'magic_hd') {
+    applyPaperFinish(data, estimatePaperGains(data), 0.62);
+  }
+
   // Sharpening
   const effectiveSharpness =
-    filter === 'magic_color' || filter === 'bw_sharp'
+    filter === 'magic_color' || filter === 'magic_hd' || filter === 'bw_sharp'
       ? Math.max(30, adjustments.sharpness)
       : adjustments.sharpness;
   applySharpen(data, w, h, effectiveSharpness);

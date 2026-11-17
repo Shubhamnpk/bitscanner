@@ -26,12 +26,13 @@ export const TopBar: React.FC<TopBarProps> = ({
       } sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md`}
     >
       <div className="flex h-12 md:h-auto items-center justify-between gap-4 px-4 md:gap-8 md:px-6 md:py-3.5">
-        {/* Zone 1: Single-element brand wordmark */}
+        {/* Zone 1: Brand mark + wordmark */}
         <button
           type="button"
           onClick={() => onNavigate('library')}
-          className="flex items-center text-left whitespace-nowrap shrink-0 min-h-[44px] md:min-h-0 focus-visible:outline-2 focus-visible:outline-teal-600 rounded-md cursor-pointer"
+          className="flex items-center gap-2 text-left whitespace-nowrap shrink-0 min-h-[44px] md:min-h-0 focus-visible:outline-2 focus-visible:outline-teal-600 rounded-md cursor-pointer"
         >
+          <img src="/icon.svg" alt="" aria-hidden="true" className="h-7 w-7 md:h-8 md:w-8 rounded-lg" />
           <span className="text-base md:text-lg font-bold tracking-tight text-slate-900 font-display">
              bitscan
           </span>

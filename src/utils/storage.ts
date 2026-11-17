@@ -23,6 +23,17 @@ const STORE_DOCS = 'documents';
 const STORE_SIGS = 'signatures';
 const SEED_FLAG = 'camscan_studio_seeded_v1';
 
+/**
+ * Demo mode flips this off so a visitor can scan, edit and delete freely while
+ * the real IndexedDB workspace stays untouched. It is memory-only by design.
+ */
+let persistenceEnabled = true;
+
+export function setPersistenceEnabled(enabled: boolean): void {
+  persistenceEnabled = enabled;
+}
+
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -56,6 +67,7 @@ export async function loadAllDocuments(): Promise<ScanDocument[]> {
 }
 
 export async function saveDocumentToDb(doc: ScanDocument): Promise<void> {
+  if (!persistenceEnabled) return;
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -70,6 +82,7 @@ export async function saveDocumentToDb(doc: ScanDocument): Promise<void> {
 }
 
 export async function deleteDocumentFromDb(id: string): Promise<void> {
+  if (!persistenceEnabled) return;
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -98,6 +111,7 @@ export async function loadAllSignatures(): Promise<SavedSignature[]> {
 }
 
 export async function saveSignatureToDb(sig: SavedSignature): Promise<void> {
+  if (!persistenceEnabled) return;
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -112,6 +126,7 @@ export async function saveSignatureToDb(sig: SavedSignature): Promise<void> {
 }
 
 export async function deleteSignatureFromDb(id: string): Promise<void> {
+  if (!persistenceEnabled) return;
   try {
     const db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
@@ -184,6 +199,26 @@ export async function ensureSeedDocuments(): Promise<ScanDocument[]> {
     return existing;
   }
 
+  const seeds = await buildSampleDocuments();
+
+  try {
+    for (const doc of seeds) {
+      await saveDocumentToDb(doc);
+    }
+    localStorage.setItem(SEED_FLAG, '1');
+  } catch {
+    // If seeding fails (e.g., offline asset error), return whatever succeeded
+  }
+
+  return seeds;
+}
+
+/**
+ * Builds the three demo documents in memory without touching IndexedDB.
+ * Demo mode uses this so a visitor can explore real content and leave without
+ * changing the local workspace.
+ */
+export async function buildSampleDocuments(): Promise<ScanDocument[]> {
   const now = Date.now();
   const seeds: ScanDocument[] = [];
 
@@ -253,13 +288,8 @@ export async function ensureSeedDocuments(): Promise<ScanDocument[]> {
       createdAt: now - 3600_000 * 52,
       updatedAt: now - 3600_000 * 48,
     });
-
-    for (const doc of seeds) {
-      await saveDocumentToDb(doc);
-    }
-    localStorage.setItem(SEED_FLAG, '1');
   } catch {
-    // If seeding fails (e.g., offline asset error), return whatever succeeded
+    // If a sample asset fails to process, keep whatever succeeded
   }
 
   return seeds;

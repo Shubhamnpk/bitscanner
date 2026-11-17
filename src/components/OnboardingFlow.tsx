@@ -5,7 +5,6 @@ import {
   FileText,
   LayoutGrid,
   List,
-  ScanLine,
   ShieldCheck,
   Sparkles,
   User,
@@ -111,9 +110,12 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
         {/* STEP 1: WELCOME */}
         {step === 1 && (
           <div className="mt-5 flex flex-col gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-sm">
-              <ScanLine className="h-6 w-6" aria-hidden="true" />
-            </div>
+            <img
+              src="/icon.svg"
+              alt=""
+              aria-hidden="true"
+              className="h-12 w-12 rounded-2xl shadow-sm"
+            />
 
             <div>
               <h2 className="text-xl font-bold tracking-tight text-slate-900">

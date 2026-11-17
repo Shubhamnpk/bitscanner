@@ -540,7 +540,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white transition-all hover:border-teal-500/40"
                 >
                   {/* Crisp Full-Bleed Thumbnail Sheet Preview (Zero Heavy Gray Border on Mobile) */}
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-100/70">
+                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-100/90">
                     <button
                       type="button"
                       onClick={() => {
@@ -583,7 +583,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         onToggleStar(doc.id);
                       }}
                       aria-label={doc.starred ? `Unstar ${doc.title}` : `Star ${doc.title}`}
-                      className={`hidden sm:flex absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-400 shadow-xs backdrop-blur-xs hover:text-amber-500 transition-opacity cursor-pointer ${
+                      className={`hidden sm:flex absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/90 text-slate-400 shadow-xs backdrop-blur-xs hover:text-amber-500 transition-opacity cursor-pointer ${
                         doc.starred ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                       }`}
                     >
@@ -595,7 +595,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   </div>
 
                   {/* Clean Compact 2-Line CamScanner Footer + Native Overflow Sheet Trigger */}
-                  <div className="flex flex-col gap-0.5 border-t border-slate-100 px-2.5 py-2 sm:px-3 sm:py-2.5">
+                  <div className="flex flex-col gap-0.5 border-t border-slate-200 px-2.5 py-2 sm:px-3 sm:py-2.5 bg-slate-50/90">
                     <div className="flex items-center justify-between gap-1">
                       {editingId === doc.id ? (
                         <input

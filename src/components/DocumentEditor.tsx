@@ -97,6 +97,7 @@ interface DocumentEditorProps {
 const FILTER_PRESETS: Array<{ id: FilterPreset; label: string; desc: string }> = [
   { id: 'original', label: 'Original', desc: 'Natural unadjusted photo' },
   { id: 'magic_color', label: 'Magic Color', desc: 'White paper + vivid ink' },
+  { id: 'magic_hd', label: 'Magic HD', desc: 'Flattens glare & colour cast' },
   { id: 'lighten', label: 'Lighten', desc: 'Soft exposure boost' },
   { id: 'grayscale', label: 'Grayscale', desc: 'Clean neutral monochrome' },
   { id: 'bw', label: 'B&W', desc: 'Adaptive photocopy' },
@@ -539,6 +540,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         return {};
       case 'magic_color':
         return { filter: 'contrast(120%) saturate(140%) brightness(105%)' };
+      case 'magic_hd':
+        return { filter: 'contrast(124%) saturate(145%) brightness(106%)' };
       case 'lighten':
         return { filter: 'brightness(120%) contrast(110%)' };
       case 'grayscale':
