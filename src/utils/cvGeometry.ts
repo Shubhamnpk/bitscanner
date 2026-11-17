@@ -1038,9 +1038,9 @@ function detectCentralRegionGrowQuads(
 function scoreQuadCandidate(
   quad: QuadCorners,
   buf: EdgeFeatureBuffers
-): { score: number; edgeSupport: number } {
+): { score: number; edgeSupport: number; sideMinSupport: number; sideMinContrast: number } {
   if (!isValidDocumentQuad(quad) || !hasReasonableQuadAngles(quad)) {
-    return { score: -1, edgeSupport: 0 };
+    return { score: -1, edgeSupport: 0, sideMinSupport: 0, sideMinContrast: 0 };
   }
 
   const { width, height, gx, gy, grad, baseGrad } = buf;
@@ -1192,13 +1192,31 @@ function scoreQuadCandidate(
     borderPenalty *
     perspectiveFactor;
 
-  return { score, edgeSupport };
+  return { score, edgeSupport, sideMinSupport, sideMinContrast };
 }
 
 export interface DetectedQuadResult {
   quad: QuadCorners;
   confidence: number;
   edgeSupport: number;
+}
+
+/**
+ * Returns true if a quadrilateral covers the full image frame (within a small tolerance).
+ * When true, document dewarp should be bypassed to avoid any cropping, homography interpolation,
+ * or pixel clipping.
+ */
+export function isFullFrameQuad(quad: QuadCorners, tolerance = 0.03): boolean {
+  return (
+    quad[0].x <= tolerance &&
+    quad[0].y <= tolerance &&
+    quad[1].x >= 1 - tolerance &&
+    quad[1].y <= tolerance &&
+    quad[2].x >= 1 - tolerance &&
+    quad[2].y >= 1 - tolerance &&
+    quad[3].x <= tolerance &&
+    quad[3].y >= 1 - tolerance
+  );
 }
 
 /**
@@ -1260,18 +1278,21 @@ function selectBestQuadCandidate(
   let bestQuad = fallbackQuad;
   let bestScore = -1;
   let bestSupport = 0;
+  let bestSideMinSupport = 0;
 
   for (const c of expanded) {
-    const { score, edgeSupport } = scoreQuadCandidate(c, buf);
+    const { score, edgeSupport, sideMinSupport } = scoreQuadCandidate(c, buf);
     if (score > bestScore) {
       bestScore = score;
       bestQuad = c;
       bestSupport = edgeSupport;
+      bestSideMinSupport = sideMinSupport;
     }
   }
 
-  if (bestScore < 8 && bestSupport < 0.22) {
-    return { quad: fallbackQuad, confidence: 0.1, edgeSupport: bestSupport };
+  // If even the best candidate has poor score or lacks edge support on any side, fall back
+  if (bestScore < 12 || bestSupport < 0.24 || bestSideMinSupport < 0.15) {
+    return { quad: fallbackQuad, confidence: 0.08, edgeSupport: bestSupport };
   }
 
   // Soft outer bevel relief for ID cards so rounded borders and corner numbers are never hard-clipped
@@ -1282,7 +1303,20 @@ function selectBestQuadCandidate(
     }
   }
 
-  const confidence = clamp(bestSupport * 0.7 + clamp(bestScore / 90, 0, 0.3), 0, 1);
+  // Multi-factor confidence calculation requiring four-side closure:
+  // A true document MUST have strong edge support along all 4 perimeter segments.
+  const sideClosure = clamp((bestSideMinSupport - 0.16) / 0.44, 0, 1);
+  const supportFactor = clamp((bestSupport - 0.25) / 0.50, 0, 1);
+  const scoreFactor = clamp((bestScore - 18) / 60, 0, 1);
+
+  // If the weakest side lacks clear edges (< 0.28), penalize confidence severely
+  const sidePenalty = bestSideMinSupport < 0.28 ? Math.max(0, bestSideMinSupport / 0.28) : 1.0;
+
+  const confidence = clamp(
+    (supportFactor * 0.40 + sideClosure * 0.40 + scoreFactor * 0.20) * sidePenalty,
+    0,
+    1
+  );
   return { quad: bestQuad, confidence, edgeSupport: bestSupport };
 }
 

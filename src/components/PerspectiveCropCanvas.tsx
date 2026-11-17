@@ -88,8 +88,8 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
     const el = containerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const nx = clamp((clientX - rect.left) / rect.width, 0.005, 0.995);
-    const ny = clamp((clientY - rect.top) / rect.height, 0.005, 0.995);
+    const nx = clamp((clientX - rect.left) / rect.width, 0, 1);
+    const ny = clamp((clientY - rect.top) / rect.height, 0, 1);
 
     const next: QuadCorners = [
       { ...quad[0] },
@@ -122,12 +122,12 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
       { ...start.startQuad[3] },
     ];
     next[i0] = {
-      x: clamp(base0.x + dx, 0.005, 0.995),
-      y: clamp(base0.y + dy, 0.005, 0.995),
+      x: clamp(base0.x + dx, 0, 1),
+      y: clamp(base0.y + dy, 0, 1),
     };
     next[i1] = {
-      x: clamp(base1.x + dx, 0.005, 0.995),
-      y: clamp(base1.y + dy, 0.005, 0.995),
+      x: clamp(base1.x + dx, 0, 1),
+      y: clamp(base1.y + dy, 0, 1),
     };
     setDragPos({
       x: (next[i0].x + next[i1].x) * 0.5,

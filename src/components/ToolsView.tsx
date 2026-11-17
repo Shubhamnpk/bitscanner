@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowLeft,
   Camera,
   Check,
@@ -25,6 +26,7 @@ import {
   Star,
   Trash2,
   Upload,
+  UserCheck,
   X,
 } from 'lucide-react';
 import type { ScanDocument } from '../types/scanner';
@@ -42,10 +44,13 @@ import {
   type RenderedPdfPageImage,
 } from '../utils/pdfTools';
 import {
+  computePassportFraming,
+  detectFaceRegion,
   PASSPORT_PRESETS,
   SHEET_DIMENSIONS_MM,
   renderPassportPhotoTile,
   renderPassportPrintSheet,
+  type FaceDetectionResult,
   type PassportPresetId,
   type SheetSizeId,
 } from '../utils/ppPhotoHelper';
@@ -124,6 +129,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
   const [ppPreviewSheet, setPpPreviewSheet] = useState<string>('');
   const [ppSheetInfo, setPpSheetInfo] = useState<string>('');
   const [ppBusy, setPpBusy] = useState(false);
+  // Face detection state
+  const [ppFaceResult, setPpFaceResult] = useState<FaceDetectionResult | null>(null);
+  const [ppFaceDetecting, setPpFaceDetecting] = useState(false);
 
   // 4. Merge PDFs state
   const [mergeFiles, setMergeFiles] = useState<Array<{ id: string; file: File }>>([]);
@@ -225,6 +233,28 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
       haptics.success();
     } finally {
       setPpBusy(false);
+    }
+  };
+
+  /** Runs face detection on the loaded portrait, then auto-frames and regenerates outputs. */
+  const handleAutoFrameFace = async (srcUrl = ppSourceUrl, preset = ppPreset) => {
+    if (!srcUrl) return;
+    setPpFaceDetecting(true);
+    try {
+      const result = await detectFaceRegion(srcUrl);
+      setPpFaceResult(result);
+      if (result.faceBox && result.confidence >= 0.4) {
+        const { zoom, offsetY } = computePassportFraming(result.faceBox, preset);
+        setPpZoom(zoom);
+        setPpOffsetY(offsetY);
+        await generatePassportOutputs(srcUrl, preset, ppSheet, ppBg, zoom, offsetY);
+        haptics.success();
+      } else {
+        // No face found — just regenerate with current settings
+        await generatePassportOutputs(srcUrl, preset, ppSheet, ppBg, ppZoom, ppOffsetY);
+      }
+    } finally {
+      setPpFaceDetecting(false);
     }
   };
 
@@ -405,7 +435,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           if (!file) return;
           const url = await readFileAsDataUrl(file);
           setPpSourceUrl(url);
-          await generatePassportOutputs(url, ppPreset, ppSheet, ppBg, ppZoom, ppOffsetY);
+          setPpFaceResult(null);
+          // Auto-run face detection + framing on upload
+          await handleAutoFrameFace(url, ppPreset);
         }}
       />
 
@@ -915,13 +947,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {/* TOOL 3: PASSPORT / PP SIZE PHOTO MAKER */}
           {activeTool === 'pp_size' && (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              {/* Preview Panel */}
               <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-sm font-bold text-slate-900">Cut-Ready Passport Print Sheet</h2>
                     {ppSheetInfo && <p className="text-xs text-slate-500">{ppSheetInfo}</p>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => ppInputRef.current?.click()}
@@ -937,8 +970,40 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     >
                       <span>From Library</span>
                     </button>
+                    {ppSourceUrl && (
+                      <button
+                        type="button"
+                        disabled={ppFaceDetecting || ppBusy}
+                        onClick={() => handleAutoFrameFace(ppSourceUrl, ppPreset)}
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-700 hover:bg-teal-100 disabled:opacity-50 cursor-pointer"
+                      >
+                        {ppFaceDetecting ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        <span>{ppFaceDetecting ? 'Detecting...' : 'Auto-Frame Face'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
+
+                {/* Face detection status badge */}
+                {ppFaceResult !== null && (
+                  <div className="flex items-center">
+                    {ppFaceResult.faceBox && ppFaceResult.confidence >= 0.4 ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                        <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                        Face detected — auto-framed to ICAO passport standards
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                        No face found — adjust zoom &amp; position manually
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {!ppPreviewSheet ? (
                   <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center px-4">
@@ -947,17 +1012,43 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       Upload a portrait photo to create standard PP-size copies
                     </p>
                     <p className="mt-1 text-xs text-slate-500">
+                      Face is detected automatically and framed to ICAO passport photo standards.
                       Supports 35×45mm, 2×2in US Passport, 33×48mm Visa, and 4×6 or A4 cut-guide sheets.
                     </p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4 sm:flex-row items-start">
+                    {/* Single tile preview with face guide overlay */}
                     <div className="w-36 shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
-                      <img
-                        src={ppPreviewTile}
-                        alt="Single passport tile"
-                        className="w-full rounded-lg border border-slate-200 object-contain"
-                      />
+                      <div className="relative">
+                        <img
+                          src={ppPreviewTile}
+                          alt="Single passport tile"
+                          className="w-full rounded-lg border border-slate-200 object-contain"
+                        />
+                        {/* ICAO face guide overlay — dashed oval showing expected face zone */}
+                        {ppFaceResult?.faceBox && ppFaceResult.confidence >= 0.4 && (
+                          <svg
+                            className="pointer-events-none absolute inset-0 h-full w-full"
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                            aria-hidden="true"
+                          >
+                            {/* Head zone guide: face should sit in ~10-85% vertically, centered */}
+                            <ellipse
+                              cx="50"
+                              cy="47"
+                              rx="28"
+                              ry="38"
+                              fill="none"
+                              stroke="#14b8a6"
+                              strokeWidth="1.5"
+                              strokeDasharray="4 3"
+                              opacity="0.7"
+                            />
+                          </svg>
+                        )}
+                      </div>
                       <span className="mt-1.5 block text-[11px] font-medium text-slate-600">
                         Single Tile
                       </span>
@@ -973,6 +1064,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 )}
               </div>
 
+              {/* Settings Panel */}
               <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
                 <h2 className="text-sm font-bold text-slate-900">Photo &amp; Sheet Setup</h2>
 
@@ -1483,7 +1575,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       ]);
                     } else if (target === 'pp_size' && urls[0]) {
                       setPpSourceUrl(urls[0]);
-                      await generatePassportOutputs(urls[0], ppPreset, ppSheet, ppBg, ppZoom, ppOffsetY);
+                      setPpFaceResult(null);
+                      // Auto-run face detection + framing when picking from library
+                      await handleAutoFrameFace(urls[0], ppPreset);
                     } else if (target === 'ocr_extract' && urls[0]) {
                       setOcrSrcUrl(urls[0]);
                       setOcrBusy(true);

@@ -3,6 +3,7 @@ import { loadImage } from './imageProcessor';
 // ─── Face Detection Types ──────────────────────────────────────────────────────
 
 export interface FaceBox {
+  /** Normalized [0..1] relative to image dimensions */
   x: number;
   y: number;
   width: number;
@@ -11,7 +12,221 @@ export interface FaceBox {
 
 export interface FaceDetectionResult {
   faceBox: FaceBox | null;
+  /** 0 = no face / fallback, 0.5 = heuristic, 0.9+ = native API */
   confidence: number;
+}
+
+export interface PassportFraming {
+  zoom: number;
+  offsetY: number; // normalized -0.3..0.3
+}
+
+// ─── ICAO Passport Photo Framing Constants ─────────────────────────────────────
+// Per ICAO Doc 9303 Part 3: face (chin to crown) = 70-80% of photo height,
+// top of head ≈ 10% from top of frame, centered horizontally.
+const ICAO_FACE_HEIGHT_FRACTION = 0.75; // target face height as fraction of photo
+const ICAO_HEAD_TOP_FRACTION = 0.10;    // how far from top the crown should sit
+
+// ─── Skin-tone Heuristic Face Detection (Canvas, no deps) ─────────────────────
+
+/**
+ * Counts how many pixels in an RGBA flat array look like skin tones
+ * (broad HSV-approximation, works for all skin tones).
+ */
+function isSkinPixel(r: number, g: number, b: number): boolean {
+  // Rule-of-thumb skin-tone ranges in RGB space (Peer et al.)
+  if (r < 60 || g < 40 || b < 20) return false; // too dark
+  if (r < g || r < b) return false;              // green/blue cast
+  if (r - g < 15) return false;                  // desaturated
+  if (Math.max(r, g, b) - Math.min(r, g, b) < 15) return false; // grey
+  return r > 95 && g > 40 && b > 20 &&
+    Math.abs(r - g) > 15 && r > g && r > b;
+}
+
+/**
+ * Finds the bounding box of the largest skin-tone region in the upper 2/3
+ * of the image. Returns normalized [0..1] coordinates.
+ *
+ * Uses a small canvas (160×200 max) for speed.
+ */
+function detectFaceBySkinTone(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number
+): FaceBox | null {
+  // Only look at the upper 2/3 of the frame (faces are rarely in the bottom)
+  const searchHeight = Math.round(height * 0.75);
+
+  // Build a skin mask and find min/max extents
+  let minX = width, minY = height, maxX = 0, maxY = 0;
+  let skinCount = 0;
+
+  for (let y = 0; y < searchHeight; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (isSkinPixel(r, g, b)) {
+        skinCount++;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  // Need at least 2% of the search area to be skin
+  const minSkinPixels = Math.round(width * searchHeight * 0.02);
+  if (skinCount < minSkinPixels || maxX <= minX || maxY <= minY) return null;
+
+  // Expand the detected box by ~12% to include hair/forehead not detected as skin
+  const rawW = maxX - minX;
+  const rawH = maxY - minY;
+  const expandX = rawW * 0.12;
+  const expandY = rawH * 0.15; // more expansion at top for hair/crown
+
+  const boxX = Math.max(0, minX - expandX) / width;
+  const boxY = Math.max(0, minY - expandY * 1.5) / height; // extra top for crown
+  const boxW = Math.min(width, maxX + expandX) / width - boxX;
+  const boxH = Math.min(height, maxY + expandY) / height - boxY;
+
+  return { x: boxX, y: boxY, width: boxW, height: boxH };
+}
+
+/**
+ * Detects the dominant face in an image dataURL.
+ *
+ * Strategy:
+ * 1. Try the browser's native FaceDetector API (Chrome/Edge, no extra deps).
+ * 2. Fall back to a pure-Canvas skin-tone heuristic.
+ *
+ * Returns normalized [0..1] face box coordinates and a confidence score.
+ */
+export async function detectFaceRegion(imageDataUrl: string): Promise<FaceDetectionResult> {
+  const img = await loadImage(imageDataUrl);
+  const iw = img.naturalWidth;
+  const ih = img.naturalHeight;
+
+  // ── Path 1: Native FaceDetector API (Chrome 70+, Edge 79+) ──────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const FD = (typeof window !== 'undefined' && (window as any).FaceDetector) as
+    | (new (opts?: { fastMode?: boolean; maxDetectedFaces?: number }) => {
+        detect(img: HTMLImageElement): Promise<Array<{ boundingBox: DOMRectReadOnly }>>;
+      })
+    | undefined;
+
+  if (FD) {
+    try {
+      const fd = new FD({ fastMode: false, maxDetectedFaces: 3 });
+      const faces = await fd.detect(img);
+      if (faces.length > 0) {
+        // Pick the largest face (most prominent)
+        const best = faces.reduce((a, b) =>
+          a.boundingBox.width * a.boundingBox.height >= b.boundingBox.width * b.boundingBox.height ? a : b
+        );
+        const bb = best.boundingBox;
+        return {
+          faceBox: {
+            x: bb.left / iw,
+            y: bb.top / ih,
+            width: bb.width / iw,
+            height: bb.height / ih,
+          },
+          confidence: 0.92,
+        };
+      }
+    } catch {
+      // FaceDetector failed — fall through to heuristic
+    }
+  }
+
+  // ── Path 2: Canvas skin-tone heuristic ───────────────────────────────────────
+  if (typeof document === 'undefined') {
+    return { faceBox: null, confidence: 0 };
+  }
+
+  const MAX_DIM = 180;
+  const scale = Math.min(1, MAX_DIM / Math.max(iw, ih));
+  const cw = Math.max(1, Math.round(iw * scale));
+  const ch = Math.max(1, Math.round(ih * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return { faceBox: null, confidence: 0 };
+
+  ctx.drawImage(img, 0, 0, cw, ch);
+  const { data } = ctx.getImageData(0, 0, cw, ch);
+
+  const faceBox = detectFaceBySkinTone(data, cw, ch);
+  return {
+    faceBox,
+    confidence: faceBox ? 0.55 : 0,
+  };
+}
+
+/**
+ * Given a detected face bounding box (normalized [0..1]), computes the optimal
+ * zoom + offsetY for the passport photo tile per ICAO Doc 9303 standards:
+ * - Face (chin to crown) ≈ 70-80% of photo height
+ * - Top of head ≈ 10% down from the top of the frame
+ * - Face centered horizontally
+ *
+ * Returns zoom (1..2.5) and offsetY (-0.3..0.3) suitable for renderPassportPhotoTile.
+ */
+export function computePassportFraming(faceBox: FaceBox, presetId: PassportPresetId): PassportFraming {
+  const preset = PASSPORT_PRESETS.find((p) => p.id === presetId) ?? PASSPORT_PRESETS[0];
+  const photoAspect = preset.widthMm / preset.heightMm;
+
+  // The face region (normalized in image space). We want faceBox.height to equal
+  // ICAO_FACE_HEIGHT_FRACTION of the tile height after zoom.
+  //
+  // After zoom, the image is scaled by `coverScale * zoom` to fill the tile.
+  // A `coverScale` such that image exactly fills tile at zoom=1:
+  //   if image is portrait (ih > iw):  coverScale = photoAspect / (iw/ih) in height terms → 1 / imageAspect * photoAspect
+  // We work in normalized image coordinates, so face.height in image = faceBox.height.
+  // After the tile crop, the visible fraction of image height = 1 / (coverScale * zoom).
+  // We want: faceBox.height / (1 / (coverScale * zoom)) = ICAO_FACE_HEIGHT_FRACTION
+  // → faceBox.height * coverScale * zoom = ICAO_FACE_HEIGHT_FRACTION
+  // → zoom = ICAO_FACE_HEIGHT_FRACTION / (faceBox.height * coverScale)
+  //
+  // coverScale in normalized terms: the tile always covers the image completely.
+  // Since renderPassportPhotoTile uses `Math.max(tw/iw, th/ih) * zoom`, which in
+  // normalized space means: for a portrait image with aspect < photoAspect,
+  // coverScale = photoAspect / imageAspect (height-constrained).
+  // For landscape, coverScale = 1/imageAspect * photoAspect... but we don't know imageAspect here.
+  // We approximate: assume the user uploaded a portrait. Use 1.0 as approximation.
+  // The actual computation inside renderPassportPhotoTile handles the real scaling.
+
+  // Simpler approach: express zoom needed to make faceBox.height fill ICAO_FACE_HEIGHT_FRACTION
+  // of the visible canvas. The visible fraction of image in Y after `coverScale * zoom` scale is
+  // 1 / (coverScale_height * zoom). For a portrait image (most PP photos), coverScale ~ 1,
+  // so visible fraction ≈ 1/zoom. We want: faceBox.height * zoom = ICAO_FACE_HEIGHT_FRACTION.
+  const rawZoom = ICAO_FACE_HEIGHT_FRACTION / Math.max(0.05, faceBox.height);
+  const zoom = Math.max(1.0, Math.min(2.4, rawZoom));
+
+  // Vertical offset: we want the top of the head (faceBox.y) to be ICAO_HEAD_TOP_FRACTION
+  // from the top of the tile. At scale 1/zoom, the image spans 1/zoom of the tile height.
+  // The center of the image maps to the center of the tile (at zoom, offset=0).
+  // The y position of faceBox.y in tile space (at zoom=1) = faceBox.y - 0.5 (relative to center).
+  // After zoom, face center in tile = (faceBox.y + faceBox.height/2 - 0.5) / zoom + 0.5.
+  // We want face top in tile = ICAO_HEAD_TOP_FRACTION:
+  //   faceTop_tile = faceCenter_tile - faceBox.height/2 * (1/zoom) ≈ ICAO_HEAD_TOP_FRACTION
+  // The offsetY shifts things by offsetY * tileHeight (in tile coords).
+  // renderPassportPhotoTile: dy = (th - dh)/2 + offsetY * th
+  // Which shifts the image up by offsetY (negative = image shifts up → face moves up).
+  // faceCenterInImage_normalized = faceBox.y + faceBox.height/2
+  // At zoom, the image is dh = ih * scale * zoom, centered at th/2 + offsetY*th.
+  // Face center in tile = (faceCenterInImage_norm - 0.5) / zoom + 0.5 + offsetY
+  // We want this to equal: ICAO_HEAD_TOP_FRACTION + ICAO_FACE_HEIGHT_FRACTION/2
+  const targetFaceCenter = ICAO_HEAD_TOP_FRACTION + ICAO_FACE_HEIGHT_FRACTION / 2;
+  const faceCenterInImage = faceBox.y + faceBox.height / 2;
+  const predictedFaceCenter = (faceCenterInImage - 0.5) / zoom + 0.5;
+  const offsetY = targetFaceCenter - predictedFaceCenter;
+  const clampedOffsetY = Math.max(-0.3, Math.min(0.3, offsetY));
+
+  return { zoom, offsetY: clampedOffsetY };
 }
 
 export type PassportPresetId = '35x45mm' | '2x2in' | '33x48mm' | '35x35mm';

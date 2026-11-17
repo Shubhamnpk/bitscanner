@@ -12,6 +12,7 @@ import {
   estimateOutputDimensions,
   filterAndSortDocuments,
   hasReasonableQuadAngles,
+  isFullFrameQuad,
   isValidDocumentQuad,
   orderCorners,
   quadArea,
@@ -617,4 +618,31 @@ test('classifyScannedSceneHint distinguishes QR transfer, QR code, ID card, book
     'book_spread'
   );
 });
+
+test('isFullFrameQuad identifies full-frame corners and rejects cropped documents', () => {
+  const full1: QuadCorners = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+  ];
+  assert.equal(isFullFrameQuad(full1), true);
+
+  const fullWithSmallTolerance: QuadCorners = [
+    { x: 0.01, y: 0.01 },
+    { x: 0.99, y: 0.01 },
+    { x: 0.99, y: 0.99 },
+    { x: 0.01, y: 0.99 },
+  ];
+  assert.equal(isFullFrameQuad(fullWithSmallTolerance), true);
+
+  const croppedDoc: QuadCorners = [
+    { x: 0.15, y: 0.12 },
+    { x: 0.85, y: 0.14 },
+    { x: 0.82, y: 0.88 },
+    { x: 0.12, y: 0.86 },
+  ];
+  assert.equal(isFullFrameQuad(croppedDoc), false);
+});
+
 

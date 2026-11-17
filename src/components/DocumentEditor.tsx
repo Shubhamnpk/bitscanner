@@ -3813,10 +3813,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   onClick={() => {
                     haptics.tap();
                     setRecropQuad([
-                      { x: 0.01, y: 0.01 },
-                      { x: 0.99, y: 0.01 },
-                      { x: 0.99, y: 0.99 },
-                      { x: 0.01, y: 0.99 },
+                      { x: 0, y: 0 },
+                      { x: 1, y: 0 },
+                      { x: 1, y: 1 },
+                      { x: 0, y: 1 },
                     ]);
                   }}
                   className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"

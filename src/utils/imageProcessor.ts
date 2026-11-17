@@ -15,6 +15,7 @@ import {
   detectDocumentQuadDetailed,
   detectDocumentQuadFromRgba,
   estimateOutputDimensions,
+  isFullFrameQuad,
   type ScanCornerHint,
 } from './cvGeometry';
 import { applyPaperFinish, estimatePaperGains } from './magicColor';
@@ -211,6 +212,18 @@ export async function perspectiveDewarp(
   maxDim = 1500
 ): Promise<{ dataUrl: string; width: number; height: number }> {
   const img = await loadImage(src);
+
+  // If the user selected full frame (no crop), bypass homography warping entirely
+  // to preserve 100% of the original photo from edge to edge without any cropping!
+  if (isFullFrameQuad(quad)) {
+    const canvas = drawToCanvas(img, maxDim);
+    return {
+      dataUrl: canvas.toDataURL('image/jpeg', 0.94),
+      width: canvas.width,
+      height: canvas.height,
+    };
+  }
+
   const srcCanvas = drawToCanvas(img, 1800);
   const sw = srcCanvas.width;
   const sh = srcCanvas.height;

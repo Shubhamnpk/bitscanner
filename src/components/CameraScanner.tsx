@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BookOpen,
   Camera,
   Check,
@@ -11,6 +12,7 @@ import {
   FolderPlus,
   Globe,
   Grid3x3,
+  Hand,
   ImagePlus,
   Layers,
   Maximize2,
@@ -19,6 +21,7 @@ import {
   RotateCcw,
   RotateCw,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   SwitchCamera,
@@ -34,6 +37,7 @@ import { useHaptics } from '../hooks/useHaptics';
 import { clamp, classifyScannedSceneHint, quadsAreClose, smoothQuadCorners, type AutoDetectedScene, type ScanCornerHint } from '../utils/cvGeometry';
 import {
   captureVisibleFeedFrame,
+  detectCornersDetailedFromDataUrl,
   detectCornersDetailedFromVideoOrImage,
   detectCornersFromDataUrl,
   loadImage,
@@ -60,6 +64,7 @@ interface QueuedCapture {
   label: string;
   originalDataUrl: string;
   quad: QuadCorners;
+  confidence?: number;
 }
 
 interface CameraScannerProps {
@@ -365,20 +370,28 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               if (!dataUrl || cancelled) continue;
               const hint: ScanCornerHint =
                 nextMode === 'id_card' ? 'id_card' : nextMode === 'book' ? 'book' : nextMode === 'auto' ? 'auto' : 'docs';
-              const quad: QuadCorners = autoEdgeDetect
-                ? await detectCornersFromDataUrl(dataUrl, { scanHint: hint })
-                : [
-                    { x: 0.04, y: 0.04 },
-                    { x: 0.96, y: 0.04 },
-                    { x: 0.96, y: 0.96 },
-                    { x: 0.04, y: 0.96 },
-                  ];
+              let quad: QuadCorners = [
+                { x: 0, y: 0 },
+                { x: 1, y: 0 },
+                { x: 1, y: 1 },
+                { x: 0, y: 1 },
+              ];
+              let confidence: number | undefined;
+              if (autoEdgeDetect) {
+                const detected = await detectCornersDetailedFromDataUrl(dataUrl, { scanHint: hint });
+                confidence = detected.confidence;
+                // Only crop if confidence is high (>= 0.88); otherwise default to full image (no crop)
+                if (confidence >= 0.88) {
+                  quad = detected.quad;
+                }
+              }
               if (cancelled) return;
               added.push({
                 id: crypto.randomUUID(),
                 label: file.name.replace(/\.[^.]+$/, '') || 'Uploaded Scan',
                 originalDataUrl: dataUrl,
                 quad,
+                confidence,
               });
             }
             if (!cancelled && added.length > 0) {
@@ -760,19 +773,27 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         }
       }
 
-      const detectedQuad: QuadCorners = autoEdgeDetect
-        ? await detectCornersFromDataUrl(dataUrl, { scanHint: activeCornerHint })
-        : [
-            { x: 0.04, y: 0.04 },
-            { x: 0.96, y: 0.04 },
-            { x: 0.96, y: 0.96 },
-            { x: 0.04, y: 0.96 },
-          ];
+      let detectedQuad: QuadCorners = [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 1 },
+      ];
+      let quadConfidence: number | undefined;
+      if (autoEdgeDetect) {
+        const det = await detectCornersDetailedFromDataUrl(dataUrl, { scanHint: activeCornerHint });
+        quadConfidence = det.confidence;
+        // Only crop if confidence is high (>= 0.88); otherwise default to full image (no crop)
+        if (quadConfidence >= 0.88) {
+          detectedQuad = det.quad;
+        }
+      }
       const item: QueuedCapture = {
         id: crypto.randomUUID(),
         label,
         originalDataUrl: dataUrl,
         quad: detectedQuad,
+        confidence: quadConfidence,
       };
 
       const prev = queueRef.current;
@@ -975,19 +996,27 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           reader.readAsDataURL(file);
         });
         if (!dataUrl) continue;
-        const quad: QuadCorners = autoEdgeDetect
-          ? await detectCornersFromDataUrl(dataUrl, { scanHint: activeCornerHint })
-          : [
-              { x: 0.04, y: 0.04 },
-              { x: 0.96, y: 0.04 },
-              { x: 0.96, y: 0.96 },
-              { x: 0.04, y: 0.96 },
-            ];
+        let quad: QuadCorners = [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+          { x: 0, y: 1 },
+        ];
+        let quadConf: number | undefined;
+        if (autoEdgeDetect) {
+          const det = await detectCornersDetailedFromDataUrl(dataUrl, { scanHint: activeCornerHint });
+          quadConf = det.confidence;
+          // Only crop if confidence is high (>= 0.88); otherwise default to full image (no crop)
+          if (quadConf >= 0.88) {
+            quad = det.quad;
+          }
+        }
         added.push({
           id: crypto.randomUUID(),
           label: file.name.replace(/\.[^.]+$/, '') || 'Uploaded Scan',
           originalDataUrl: dataUrl,
           quad,
+          confidence: quadConf,
         });
       }
 
@@ -1040,11 +1069,21 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     haptics.tap();
     setDetecting(true);
     try {
-      const nextQuad = await detectCornersFromDataUrl(activeItem.originalDataUrl, {
+      const detailed = await detectCornersDetailedFromDataUrl(activeItem.originalDataUrl, {
         scanHint: activeCornerHint,
       });
+      // If confidence >= 0.88, apply detected quad; otherwise keep full image (no crop)
+      const nextQuad: QuadCorners =
+        detailed.confidence >= 0.88
+          ? detailed.quad
+          : [
+              { x: 0, y: 0 },
+              { x: 1, y: 0 },
+              { x: 1, y: 1 },
+              { x: 0, y: 1 },
+            ];
       const next = queueRef.current.map((item, i) =>
-        i === selectedQueueIdx ? { ...item, quad: nextQuad } : item
+        i === selectedQueueIdx ? { ...item, quad: nextQuad, confidence: detailed.confidence } : item
       );
       commitQueue(next);
     } finally {
@@ -1065,9 +1104,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     ctx.rotate(Math.PI / 2);
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
     const rotatedUrl = c.toDataURL('image/jpeg', 0.92);
-    const nextQuad = await detectCornersFromDataUrl(rotatedUrl, { scanHint: activeCornerHint });
+    const detailed = await detectCornersDetailedFromDataUrl(rotatedUrl, { scanHint: activeCornerHint });
     const next = queueRef.current.map((item, i) =>
-      i === selectedQueueIdx ? { ...item, originalDataUrl: rotatedUrl, quad: nextQuad } : item
+      i === selectedQueueIdx ? { ...item, originalDataUrl: rotatedUrl, quad: detailed.quad, confidence: detailed.confidence } : item
     );
     commitQueue(next);
   };
@@ -2114,7 +2153,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               <span className="hidden sm:inline">Cancel</span>
             </button>
 
-            <div className="text-center">
+            <div className="flex flex-col items-center">
               <span className="text-sm font-bold tracking-tight text-slate-900">
                 {scanMode === 'id_card'
                   ? selectedQueueIdx === 0
@@ -2124,6 +2163,26 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     ? `Verify Page ${selectedQueueIdx + 1} of ${queue.length}`
                     : 'Verify Auto-Crop'}
               </span>
+              {activeItem && (
+                <div className="mt-0.5 flex items-center">
+                  {activeItem.confidence !== undefined && activeItem.confidence >= 0.88 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                      <ShieldCheck className="h-3 w-3" />
+                      Auto-crop confident ({Math.round(activeItem.confidence * 100)}%)
+                    </span>
+                  ) : activeItem.confidence !== undefined && activeItem.confidence > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      Low confidence ({Math.round(activeItem.confidence * 100)}%) — full image kept by default
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      <Hand className="h-3 w-3" />
+                      Full image (no crop)
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {scanMode !== 'id_card' ? (
@@ -2249,13 +2308,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     haptics.tap();
                     if (!activeItem) return;
                     const full: QuadCorners = [
-                      { x: 0.01, y: 0.01 },
-                      { x: 0.99, y: 0.01 },
-                      { x: 0.99, y: 0.99 },
-                      { x: 0.01, y: 0.99 },
+                      { x: 0, y: 0 },
+                      { x: 1, y: 0 },
+                      { x: 1, y: 1 },
+                      { x: 0, y: 1 },
                     ];
                     const next = queueRef.current.map((item, i) =>
-                      i === selectedQueueIdx ? { ...item, quad: full } : item
+                      i === selectedQueueIdx ? { ...item, quad: full, confidence: 1.0 } : item
                     );
                     commitQueue(next);
                   }}
@@ -2279,9 +2338,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   type="button"
                   data-testid="crop-delete-btn"
                   onClick={() => handleRemoveQueueItem(selectedQueueIdx)}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-red-200/80 bg-red-50/60 px-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-red-200 bg-red-50 px-1 text-[11px] font-semibold text-red-600 hover:bg-red-100 active:scale-95 transition cursor-pointer"
                 >
-                  <Trash2 className="h-4 w-4 text-red-600" aria-hidden="true" />
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
                   <span>Delete</span>
                 </button>
               </div>
