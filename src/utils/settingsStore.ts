@@ -145,7 +145,7 @@ export const AVATAR_COLOR_OPTIONS = [
   { id: '#e11d48', label: 'Rose' },
 ] as const;
 
-export const APP_VERSION = '0.0.1';
+export const APP_VERSION = '0.1.0';
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   theme: 'system',
