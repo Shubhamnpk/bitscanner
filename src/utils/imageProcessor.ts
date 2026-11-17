@@ -72,6 +72,34 @@ export async function detectCornersFromDataUrl(
   return detectDocumentQuadFromRgba(data, width, height, { scanHint: options?.scanHint });
 }
 
+/**
+ * Like `detectCornersFromDataUrl` but also returns the detection confidence (0–1).
+ * Returns `{ quad, confidence }` where confidence < 0.22 means the detector
+ * fell back to a default frame (no document found).
+ */
+export async function detectCornersDetailedFromDataUrl(
+  src: string,
+  options?: { scanHint?: ScanCornerHint }
+): Promise<{ quad: QuadCorners; confidence: number }> {
+  const img = await loadImage(src);
+  const small = drawToCanvas(img, 220);
+  const ctx = small.getContext('2d', { willReadFrequently: true });
+  if (!ctx) {
+    return {
+      quad: [
+        { x: 0.08, y: 0.08 },
+        { x: 0.92, y: 0.08 },
+        { x: 0.92, y: 0.92 },
+        { x: 0.08, y: 0.92 },
+      ],
+      confidence: 0,
+    };
+  }
+  const { data, width, height } = ctx.getImageData(0, 0, small.width, small.height);
+  const result = detectDocumentQuadDetailed(data, width, height, { scanHint: options?.scanHint });
+  return { quad: result.quad, confidence: result.confidence };
+}
+
 export function detectCornersDetailedFromVideoOrImage(
   source: HTMLVideoElement | HTMLImageElement,
   scratchCanvas: HTMLCanvasElement,

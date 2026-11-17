@@ -707,11 +707,11 @@ export default function App() {
               files: Array.from(files),
             })
           }
-          onShareProject={() =>
+          onShareProject={(pageIndex = 0) =>
             setShareModalState({
               isOpen: true,
               doc: activeDocument,
-              pageIndex: 0,
+              pageIndex,
               initialMode: appSettings.defaultShareMode || 'share',
             })
           }

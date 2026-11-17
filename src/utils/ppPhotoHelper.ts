@@ -1,5 +1,19 @@
 import { loadImage } from './imageProcessor';
 
+// ─── Face Detection Types ──────────────────────────────────────────────────────
+
+export interface FaceBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface FaceDetectionResult {
+  faceBox: FaceBox | null;
+  confidence: number;
+}
+
 export type PassportPresetId = '35x45mm' | '2x2in' | '33x48mm' | '35x35mm';
 export type SheetSizeId = '4x6in' | 'a4';
 
