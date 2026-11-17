@@ -534,10 +534,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     haptics.tap();
                     setCategoryFilter(cat.id);
                   }}
-                  className={`min-h-[40px] rounded-xl px-3.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  className={`min-h-[40px] rounded-xl px-3.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-all active:scale-95 ${
                     categoryFilter === cat.id
-                      ? 'bg-slate-900 text-white'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white dark:shadow-sm'
+                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                   }`}
                 >
                   {cat.label}
@@ -830,14 +830,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     <span>{pdfToImgBusy ? pdfToImgProgress || 'Converting...' : 'Choose PDF File'}</span>
                   </button>
 
-                  <div className="flex items-center rounded-xl border border-slate-200 p-0.5">
+                  <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800/80 p-0.5">
                     {(['png', 'jpeg'] as const).map((fmt) => (
                       <button
                         key={fmt}
                         type="button"
                         onClick={() => setPdfToImgFormat(fmt)}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase cursor-pointer ${
-                          pdfToImgFormat === fmt ? 'bg-slate-900 text-white' : 'text-slate-600'
+                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase cursor-pointer transition-colors ${
+                          pdfToImgFormat === fmt
+                            ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                         }`}
                       >
                         {fmt}
@@ -1152,7 +1154,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         setMergeStatus('');
                       }
                     }}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 disabled:opacity-50 cursor-pointer transition-colors"
                   >
                     {mergeBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

@@ -363,8 +363,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 onClick={() => onUpdate({ color: '#09090b' })}
                 className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
                   (annotation.color || '#09090b') === '#09090b'
-                    ? 'border-slate-900 bg-slate-900 text-white'
-                    : 'border-slate-200 bg-white text-slate-700'
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-teal-500 dark:bg-teal-600 dark:text-white'
+                    : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                 }`}
               >
                 Blackout
@@ -374,8 +374,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 onClick={() => onUpdate({ color: '#ffffff' })}
                 className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
                   annotation.color === '#ffffff'
-                    ? 'border-teal-600 bg-teal-50 text-teal-900'
-                    : 'border-slate-200 bg-white text-slate-700'
+                    ? 'border-teal-600 bg-teal-50 text-teal-900 dark:border-teal-400 dark:bg-teal-500/20 dark:text-teal-200'
+                    : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                 }`}
               >
                 White-Out

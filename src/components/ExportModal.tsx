@@ -244,10 +244,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <button
                     type="button"
                     onClick={handleSelectAll}
-                    className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer ${
+                    className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer transition-colors ${
                       resolvedSelected.length === totalPages
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white border border-slate-200 text-slate-700'
+                        ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     All
@@ -255,11 +255,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   <button
                     type="button"
                     onClick={handleSelectCurrent}
-                    className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer ${
+                    className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer transition-colors ${
                       resolvedSelected.length === 1 &&
                       resolvedSelected[0] === Math.min(activePageIndex, totalPages - 1)
-                        ? 'bg-slate-900 text-white'
-                        : 'bg-white border border-slate-200 text-slate-700'
+                        ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                        : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                     }`}
                   >
                     Current (P{Math.min(activePageIndex, totalPages - 1) + 1})

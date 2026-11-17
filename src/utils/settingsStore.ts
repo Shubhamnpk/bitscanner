@@ -108,6 +108,8 @@ export type ThemeMode = 'system' | 'light' | 'dark';
 
 export const THEME_MODES: ThemeMode[] = ['system', 'light', 'dark'];
 
+export type DefaultShareMode = 'share' | 'qr';
+
 export interface AppSettings {
   theme: ThemeMode;
   displayName: string;
@@ -130,6 +132,7 @@ export interface AppSettings {
   reduceMotion: boolean;
   hapticsEnabled: boolean;
   defaultLibraryView: 'grid' | 'list';
+  defaultShareMode: DefaultShareMode;
   favoriteTools: ToolId[];
 }
 
@@ -166,6 +169,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   reduceMotion: false,
   hapticsEnabled: true,
   defaultLibraryView: 'grid',
+  defaultShareMode: 'share',
   favoriteTools: ['images_to_pdf', 'pdf_to_images', 'pp_size', 'id_card'],
 };
 
@@ -212,6 +216,10 @@ export function mergeSettingsPatch(
       patch.defaultFilenamePrefix !== undefined
         ? sanitizeFilenamePrefix(patch.defaultFilenamePrefix)
         : current.defaultFilenamePrefix,
+    defaultShareMode:
+      patch.defaultShareMode === 'qr' || patch.defaultShareMode === 'share'
+        ? patch.defaultShareMode
+        : current.defaultShareMode || 'share',
     favoriteTools: mergedFavs,
   };
 }

@@ -5,6 +5,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Download,
   FileText,
   FileUp,
@@ -33,6 +34,7 @@ interface QrShareModalProps {
   availableDocuments?: ScanDocument[];
   initialPageIndex?: number;
   initialMode?: 'qr' | 'share';
+  defaultShareMode?: 'qr' | 'share';
   onClose: () => void;
   onOpenExport?: (doc: ScanDocument, pageIndex: number) => void;
   onOpenQrScanner?: () => void;
@@ -46,6 +48,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
   availableDocuments = [],
   initialPageIndex = 0,
   initialMode = 'qr',
+  defaultShareMode = 'share',
   onClose,
   onOpenExport,
   onOpenQrScanner,
@@ -54,7 +57,8 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
   const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const customFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [tab, setTab] = useState<'qr' | 'share'>(initialMode);
+  const effectiveInitialTab = initialMode || defaultShareMode || 'qr';
+  const [tab, setTab] = useState<'qr' | 'share'>(effectiveInitialTab);
   const [selectedDocId, setSelectedDocId] = useState<string>(document?.id || '');
   const [sourceKind, setSourceKind] = useState<'doc' | 'custom_file'>(
     document ? 'doc' : availableDocuments.length > 0 ? 'doc' : 'custom_file'
@@ -86,10 +90,11 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
 
   const [sysShareBusy, setSysShareBusy] = useState(false);
   const [sysShareStatus, setSysShareStatus] = useState('');
+  const [copyImageStatus, setCopyImageStatus] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
-    setTab(initialMode);
+    setTab(initialMode || defaultShareMode || 'qr');
     if (document) {
       setSelectedDocId(document.id);
       setSourceKind('doc');
@@ -103,8 +108,9 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
     setIsPlaying(true);
     setFrameIdx(0);
     setSysShareStatus('');
+    setCopyImageStatus('');
     setCustomFileError('');
-  }, [isOpen, document, initialMode, availableDocuments]);
+  }, [isOpen, document, initialMode, defaultShareMode, availableDocuments]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -119,7 +125,6 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
     if (!file) return;
     setCustomFile(file);
     setSourceKind('custom_file');
-    // For larger files (> 250 KB), automatically select high-throughput defaults
     if (file.size > 250 * 1024) {
       setDensity('dense');
       setFps((prev) => (prev < 12 ? 12 : prev));
@@ -146,7 +151,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
           if (customFile.size > MAX_QR_FILE_BYTES) {
             if (!cancelled) {
               setCustomFileError(
-                `File is ${formatByteSize(customFile.size)}, above the 5 MB QR transfer cap. Use Share / Export for instant system transfer.`
+                `File is ${formatByteSize(customFile.size)}, above the 5 MB QR transfer cap. Use Share & Export for instant system transfer.`
               );
               setFrames([]);
               setTotalBytes(0);
@@ -239,7 +244,6 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
     })
       .then(() => {
         if (cancelled) return;
-        // Reset qrcode's explicit inline px styles so responsive CSS controls rendered dimensions
         canvas.style.width = '100%';
         canvas.style.height = '100%';
       })
@@ -254,6 +258,10 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
 
   const safeFrameIdx = frames.length > 0 ? frameIdx % frames.length : 0;
   const metrics = estimateQrTransferMetrics(totalBytes, frames.length, fps);
+  const clampedIdx = activeDoc
+    ? Math.min(initialPageIndex, Math.max(0, activeDoc.pages.length - 1))
+    : 0;
+  const activePage = activeDoc?.pages[clampedIdx] || null;
 
   const activeSourceTitle =
     sourceKind === 'custom_file' && customFile
@@ -279,7 +287,6 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
     setSysShareBusy(true);
     setSysShareStatus('');
     try {
-      const clampedIdx = Math.min(initialPageIndex, Math.max(0, activeDoc.pages.length - 1));
       const pg = activeDoc.pages[clampedIdx];
       if (!pg) return;
 
@@ -324,13 +331,65 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
     }
   };
 
+  const handleCopyImageToClipboard = async () => {
+    if (!activeDoc) return;
+    haptics.tap();
+    try {
+      const pg = activeDoc.pages[clampedIdx];
+      if (!pg) return;
+      const resp = await fetch(pg.processedDataUrl);
+      const blob = await resp.blob();
+
+      // Convert to PNG for clipboard compatibility
+      const img = new Image();
+      img.src = pg.processedDataUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+      const canvas = window.document.createElement('canvas');
+      canvas.width = img.naturalWidth || 800;
+      canvas.height = img.naturalHeight || 1100;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+      }
+      const pngBlob = await new Promise<Blob | null>((res) =>
+        canvas.toBlob((b) => res(b), 'image/png')
+      );
+
+      if (navigator.clipboard && typeof navigator.clipboard.write === 'function' && pngBlob) {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': pngBlob }),
+        ]);
+        setCopyImageStatus('Copied to clipboard!');
+        haptics.success();
+        window.setTimeout(() => setCopyImageStatus(''), 2500);
+      } else {
+        // Fallback: download image
+        const dlUrl = URL.createObjectURL(blob);
+        const a = window.document.createElement('a');
+        a.href = dlUrl;
+        a.download = `${activeDoc.title || 'scan'}_page_${clampedIdx + 1}.jpg`;
+        window.document.body.appendChild(a);
+        a.click();
+        window.document.body.removeChild(a);
+        URL.revokeObjectURL(dlUrl);
+        setCopyImageStatus('Saved image to device');
+        window.setTimeout(() => setCopyImageStatus(''), 2500);
+      }
+    } catch {
+      setCopyImageStatus('Unable to copy image');
+      window.setTimeout(() => setCopyImageStatus(''), 2500);
+    }
+  };
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Full-screen QR File Beam"
       data-testid="qr-share-modal"
-      className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white overflow-hidden"
+      className="fixed inset-0 z-50 flex flex-col bg-[#070b14] text-white overflow-hidden"
     >
       {/* Hidden custom file picker (up to 5 MB) */}
       <input
@@ -344,15 +403,15 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
         }}
       />
 
-      {/* Top Full-Screen Bar */}
-      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-slate-950/95 px-2.5 sm:px-6">
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+      {/* Top Full-Screen Navigation Bar */}
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-[#090e1a]/95 px-3 sm:px-6 backdrop-blur-md">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close QR File Beam"
+            aria-label="Close share screen"
             data-testid="qr-close-btn"
-            className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer"
+            className="flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -362,7 +421,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
               data-testid="qr-modal-title"
               className="truncate text-sm sm:text-base font-bold tracking-tight text-white"
             >
-              QR File Beam
+              {tab === 'qr' ? 'QR File Beam' : 'Share & Export'}
             </h2>
             <p className="truncate text-[11px] sm:text-xs text-slate-400">
               {activeSourceTitle}
@@ -373,13 +432,15 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {activeDoc && (
-            <div className="flex items-center rounded-xl bg-white/10 p-1">
+            <div className="flex items-center rounded-xl bg-white/[0.08] p-1 border border-white/10">
               <button
                 type="button"
                 onClick={() => setTab('qr')}
                 data-testid="qr-share-tab-qr"
-                className={`min-h-[34px] rounded-lg px-2.5 sm:px-3 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                  tab === 'qr' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-300 hover:text-white'
+                className={`min-h-[30px] sm:min-h-[32px] rounded-lg px-2.5 sm:px-3 text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                  tab === 'qr'
+                    ? 'bg-teal-500 text-slate-950 font-bold shadow-sm'
+                    : 'text-slate-300 hover:text-white'
                 }`}
               >
                 <span className="sm:hidden">Beam</span>
@@ -389,9 +450,9 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                 type="button"
                 onClick={() => setTab('share')}
                 data-testid="qr-share-tab-system"
-                className={`min-h-[34px] rounded-lg px-2.5 sm:px-3 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[30px] sm:min-h-[32px] rounded-lg px-2.5 sm:px-3 text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                   tab === 'share'
-                    ? 'bg-white text-slate-950 shadow-xs'
+                    ? 'bg-teal-500 text-slate-950 font-bold shadow-sm'
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
@@ -411,25 +472,26 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
               }}
               aria-label="Receive QR via Camera"
               data-testid="qr-open-scanner-btn"
-              className="inline-flex h-10 w-10 sm:w-auto items-center justify-center gap-1.5 rounded-xl bg-teal-500 px-0 sm:px-3 text-xs font-bold text-slate-950 hover:bg-teal-400 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex h-9 sm:h-9.5 items-center justify-center gap-1.5 rounded-xl border border-teal-500/40 bg-teal-500/15 px-2.5 sm:px-3 text-xs font-bold text-teal-300 hover:bg-teal-500/25 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
             >
               <Camera className="h-4 w-4" aria-hidden="true" />
-              <span className="hidden sm:inline">Receive via Camera</span>
+              <span className="hidden md:inline">Receive QR</span>
             </button>
           )}
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       {tab === 'qr' ? (
-        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:overflow-hidden">
-          {/* Center Full-Scale Optical Emitter Stage */}
-          <section className="flex flex-col items-center justify-center px-4 py-4 sm:p-8 lg:h-full lg:overflow-y-auto">
+        /* ================= QR BEAM VIEW (Restored & Polished for Mobile & Desktop) ================= */
+        <div className="flex flex-1 min-h-0 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden bg-[#070b14]">
+          {/* Optical Emitter Stage (Mobile-Optimized to fit viewport) */}
+          <section className="flex flex-col items-center justify-center p-3.5 sm:p-6 lg:p-8 lg:h-full lg:overflow-y-auto bg-[#070b14]">
             {frames.length > 0 ? (
-              <div className="flex w-full max-w-[520px] flex-col items-center">
-                {/* Crisp Pure-White Optical Plate */}
-                <div className="rounded-3xl bg-white p-3 sm:p-5 shadow-2xl max-w-full">
-                  <div className="relative h-[min(76vw,320px)] w-[min(76vw,320px)] sm:h-[min(54vh,440px)] sm:w-[min(54vh,440px)]">
+              <div className="flex w-full max-w-[480px] flex-col items-center">
+                {/* Sleek Dark Navy Container Plate framing the white optical scan canvas */}
+                <div className="rounded-3xl bg-[#0d1527] border border-white/10 p-3 sm:p-4 shadow-2xl max-w-full">
+                  <div className="relative rounded-2xl overflow-hidden bg-white p-2 h-[min(64vw,250px)] w-[min(64vw,250px)] sm:h-[320px] sm:w-[320px] lg:h-[380px] lg:w-[380px]">
                     <canvas
                       ref={qrCanvasRef}
                       data-testid="qr-beam-canvas"
@@ -440,8 +502,8 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                   </div>
                 </div>
 
-                {/* Progress & Frame Scrubber */}
-                <div className="mt-4 sm:mt-5 w-full max-w-[440px] space-y-2.5 sm:space-y-3">
+                {/* Scrubber & Telemetry */}
+                <div className="mt-3.5 w-full max-w-[400px] space-y-2">
                   {frames.length > 1 && (
                     <input
                       type="range"
@@ -454,15 +516,15 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                       }}
                       aria-label="Scrub QR stream frame"
                       data-testid="qr-frame-scrubber"
-                      className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-teal-400"
+                      className="studio-slider w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-teal-400"
                     />
                   )}
 
-                  {/* Clean Unboxed Telemetry Line */}
-                  <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs sm:text-sm text-slate-300 font-mono-tabular">
+                  {/* Clean Telemetry Line */}
+                  <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-xs font-mono-tabular text-slate-300">
                     <span data-testid="qr-frame-counter" className="font-bold text-white">
                       {frames.length === 1
-                        ? 'Single QR · Instant Scan'
+                        ? 'Single QR · Instant'
                         : `Frame ${safeFrameIdx + 1} / ${frames.length}`}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -472,14 +534,14 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                     {frames.length > 1 && (
                       <>
                         <span aria-hidden="true">·</span>
-                        <span>{metrics.throughputLabel}</span>
+                        <span className="text-teal-400">{metrics.throughputLabel}</span>
                       </>
                     )}
                   </div>
 
                   {/* Playback Transport Controls */}
                   {frames.length > 1 && (
-                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-0.5">
                       <button
                         type="button"
                         onClick={() => {
@@ -487,7 +549,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                           setFrameIdx(0);
                         }}
                         aria-label="Restart stream from frame 1"
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-slate-200 hover:bg-white/20 cursor-pointer"
+                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-white/10 bg-[#0e1628] text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
                       >
                         <RotateCcw className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -499,7 +561,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                           setFrameIdx((i) => (i - 1 + frames.length) % frames.length);
                         }}
                         aria-label="Previous QR frame"
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 cursor-pointer"
+                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-white/10 bg-[#0e1628] text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
                       >
                         <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -508,7 +570,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                         type="button"
                         onClick={() => setIsPlaying((p) => !p)}
                         data-testid="qr-play-pause-btn"
-                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-teal-500 px-5 text-xs sm:text-sm font-bold text-slate-950 hover:bg-teal-400 cursor-pointer"
+                        className="inline-flex h-9 sm:h-10 items-center gap-2 rounded-xl bg-teal-500 px-4 sm:px-5 text-xs sm:text-sm font-bold text-slate-950 hover:bg-teal-400 active:scale-95 cursor-pointer shadow-md transition-all"
                       >
                         {isPlaying ? (
                           <>
@@ -530,19 +592,21 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                           setFrameIdx((i) => (i + 1) % frames.length);
                         }}
                         aria-label="Next QR frame"
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 cursor-pointer"
+                        className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-white/10 bg-[#0e1628] text-slate-300 hover:bg-white/10 hover:text-white cursor-pointer transition-colors"
                       >
                         <ChevronRight className="h-4 w-4" aria-hidden="true" />
                       </button>
 
-                      <div className="flex items-center rounded-xl border border-white/15 bg-white/5 p-1">
+                      <div className="flex items-center rounded-xl border border-white/10 bg-[#0e1628] p-0.5">
                         {[5, 8, 12, 15].map((speed) => (
                           <button
                             key={speed}
                             type="button"
                             onClick={() => setFps(speed)}
-                            className={`min-h-[34px] rounded-lg px-2.5 text-xs font-semibold cursor-pointer ${
-                              fps === speed ? 'bg-white text-slate-950' : 'text-slate-300 hover:text-white'
+                            className={`min-h-[30px] rounded-lg px-2 sm:px-2.5 text-[11px] sm:text-xs font-semibold cursor-pointer transition-colors ${
+                              fps === speed
+                                ? 'bg-teal-500 text-slate-950 font-bold'
+                                : 'text-slate-400 hover:text-white'
                             }`}
                           >
                             {speed}fps
@@ -554,27 +618,27 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex max-w-sm flex-col items-center justify-center py-12 text-center">
-                <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-teal-400">
-                  <QrCode className="h-8 w-8" aria-hidden="true" />
+              <div className="flex max-w-sm flex-col items-center justify-center py-10 text-center">
+                <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-500/15 text-teal-400 border border-teal-500/30">
+                  <QrCode className="h-7 w-7" aria-hidden="true" />
                 </div>
-                <p className="text-sm font-semibold text-white">
+                <p className="text-sm font-bold text-white">
                   {encodingBusy ? 'Generating optical QR stream...' : 'Ready to beam a file'}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {summaryLabel || 'Select a document or pick any file up to 5 MB from your device.'}
+                  {summaryLabel || 'Select a document or pick any file up to 5 MB.'}
                 </p>
               </div>
             )}
           </section>
 
-          {/* Right / Bottom Configuration Panel */}
-          <aside className="flex flex-col gap-5 border-t border-white/10 bg-slate-900/75 p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:p-6 lg:border-t-0 lg:border-l lg:overflow-y-auto">
-            {/* 1. Source Selection + Drag-and-Drop up to 5 MB */}
-            <div className="space-y-3">
+          {/* Configuration Panel (Mobile-Friendly Compact Cards) */}
+          <aside className="flex flex-col gap-4 border-t border-white/10 bg-[#0a0f1d] p-4 sm:p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] lg:border-t-0 lg:border-l lg:overflow-y-auto">
+            {/* 1. Source Selection & File Picker Card */}
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-300">Source File</h3>
-                <span className="text-xs text-slate-400">Up to 5 MB offline</span>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Source File</h3>
+                <span className="text-[11px] text-teal-400 font-semibold">Up to 5 MB offline</span>
               </div>
 
               {availableDocuments.length > 0 && !document && (
@@ -585,7 +649,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                     setSourceKind('doc');
                   }}
                   aria-label="Choose document to share via QR"
-                  className="min-h-[44px] w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white"
+                  className="min-h-[42px] w-full rounded-xl border border-white/10 bg-[#0e1628] px-3 text-xs font-semibold text-white focus:outline-none"
                 >
                   {availableDocuments.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -595,7 +659,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                 </select>
               )}
 
-              {/* File Picker / Drop Target */}
+              {/* File Drop Target Card */}
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -608,12 +672,12 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                   const dropped = e.dataTransfer.files?.[0] || null;
                   acceptCustomFile(dropped);
                 }}
-                className={`rounded-2xl border border-dashed p-3.5 transition-colors ${
+                className={`rounded-2xl border p-3.5 transition-colors ${
                   dragActive
-                    ? 'border-teal-400 bg-teal-500/10'
+                    ? 'border-teal-400 bg-teal-500/15'
                     : sourceKind === 'custom_file' && customFile
-                      ? 'border-teal-500/50 bg-white/5'
-                      : 'border-white/15 bg-white/[0.03]'
+                      ? 'border-teal-400/40 bg-[#0e1628]'
+                      : 'border-white/10 bg-[#0e1628]'
                 }`}
               >
                 {sourceKind === 'custom_file' && customFile ? (
@@ -621,7 +685,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                     <div className="min-w-0">
                       <div className="truncate text-xs font-bold text-white">{customFile.name}</div>
                       <div className="text-[11px] text-slate-400">
-                        {formatByteSize(customFile.size)} · Local file
+                        {formatByteSize(customFile.size)} · Device file
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -629,7 +693,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                         type="button"
                         onClick={() => customFileInputRef.current?.click()}
                         data-testid="qr-pick-custom-file-btn"
-                        className="min-h-[36px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer"
+                        className="min-h-[34px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer"
                       >
                         Replace
                       </button>
@@ -637,7 +701,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setSourceKind('doc')}
-                          className="min-h-[36px] rounded-lg px-2.5 text-xs font-semibold text-teal-300 hover:bg-white/10 cursor-pointer"
+                          className="min-h-[34px] rounded-lg px-2.5 text-xs font-semibold text-teal-300 hover:underline cursor-pointer"
                         >
                           Use Scan
                         </button>
@@ -647,12 +711,14 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                 ) : (
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <FileText className="h-4.5 w-4.5 shrink-0 text-teal-400" aria-hidden="true" />
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                        <FileText className="h-4.5 w-4.5" aria-hidden="true" />
+                      </div>
                       <div className="min-w-0">
-                        <div className="truncate text-xs font-semibold text-white">
+                        <div className="truncate text-xs font-bold text-white">
                           {activeDoc ? activeDoc.title : 'No scan selected'}
                         </div>
-                        <div className="text-[11px] text-slate-400">
+                        <div className="text-[11px] text-slate-400 truncate">
                           Or drop any PDF, ZIP, image, or file (max 5 MB)
                         </div>
                       </div>
@@ -661,7 +727,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                       type="button"
                       onClick={() => customFileInputRef.current?.click()}
                       data-testid="qr-pick-custom-file-btn"
-                      className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer"
+                      className="inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-xl border border-white/15 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer"
                     >
                       <FileUp className="h-3.5 w-3.5 text-teal-300" aria-hidden="true" />
                       <span>Pick File</span>
@@ -671,24 +737,24 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
               </div>
 
               {customFileError && (
-                <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300">
                   {customFileError}
                 </div>
               )}
             </div>
 
-            {/* 2. Document Preset & Page Scope */}
+            {/* 2. Document Payload (Quality & Page Scope) */}
             {sourceKind === 'doc' && activeDoc && (
-              <div className="space-y-3 border-t border-white/10 pt-4">
+              <div className="space-y-2.5 border-t border-white/10 pt-3.5">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold text-slate-300">Document Payload</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Document Payload</h3>
                   {activeDoc.pages.length > 1 && (
-                    <div className="flex items-center gap-1 rounded-lg bg-white/10 p-0.5">
+                    <div className="flex items-center gap-1 rounded-lg bg-white/10 p-0.5 border border-white/10">
                       <button
                         type="button"
                         onClick={() => setPageScope('active')}
-                        className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer ${
-                          pageScope === 'active' ? 'bg-white text-slate-950' : 'text-slate-300'
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-semibold cursor-pointer ${
+                          pageScope === 'active' ? 'bg-teal-500 text-slate-950 font-bold' : 'text-slate-300'
                         }`}
                       >
                         Page {Math.min(initialPageIndex + 1, activeDoc.pages.length)}
@@ -696,11 +762,11 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                       <button
                         type="button"
                         onClick={() => setPageScope('all')}
-                        className={`rounded-md px-2 py-1 text-[11px] font-semibold cursor-pointer ${
-                          pageScope === 'all' ? 'bg-white text-slate-950' : 'text-slate-300'
+                        className={`rounded-md px-2 py-0.5 text-[11px] font-semibold cursor-pointer ${
+                          pageScope === 'all' ? 'bg-teal-500 text-slate-950 font-bold' : 'text-slate-300'
                         }`}
                       >
-                        All {activeDoc.pages.length}
+                        All {activeDoc.pages.length}p
                       </button>
                     </div>
                   )}
@@ -722,10 +788,10 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                         setDocPreset(opt.id);
                       }}
                       data-testid={`qr-preset-${opt.id}`}
-                      className={`min-h-[40px] rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                      className={`min-h-[38px] rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                         docPreset === opt.id
-                          ? 'border-teal-400 bg-teal-500/20 text-teal-200'
-                          : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                          ? 'border-teal-400 bg-teal-500/20 text-teal-200 font-bold'
+                          : 'border-white/10 bg-[#0e1628] text-slate-400 hover:text-white hover:bg-white/5'
                       }`}
                     >
                       {opt.label}
@@ -735,11 +801,11 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
               </div>
             )}
 
-            {/* 3. Optical Chunk Density & Export PNG */}
-            <div className="space-y-3 border-t border-white/10 pt-4">
+            {/* 3. Optical Chunk Density */}
+            <div className="space-y-2.5 border-t border-white/10 pt-3.5">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-300">Optical Chunk Density</h3>
-                <span className="text-[11px] text-slate-400">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Optical Chunk Density</h3>
+                <span className="text-[11px] text-teal-400 font-mono-tabular">
                   {density === 'fast'
                     ? '420 B/frame'
                     : density === 'balanced'
@@ -761,10 +827,10 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                     type="button"
                     onClick={() => setDensity(d.id)}
                     data-testid={`qr-density-${d.id}`}
-                    className={`min-h-[40px] rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                    className={`min-h-[38px] rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                       density === d.id
-                        ? 'border-teal-400 bg-teal-500/20 text-teal-200'
-                        : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                        ? 'border-teal-400 bg-teal-500/20 text-teal-200 font-bold'
+                        : 'border-white/10 bg-[#0e1628] text-slate-400 hover:text-white hover:bg-white/5'
                     }`}
                   >
                     {d.label}
@@ -773,8 +839,8 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
               </div>
 
               {metrics.isLargeTransfer && (
-                <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-3 text-[11px] leading-relaxed text-amber-200">
-                  Large stream ({frames.length} frames, {metrics.formattedDuration} per loop). Turn screen brightness to max and hold cameras steady ~15 cm apart. For instant multi-MB transfer, use Share &amp; Export.
+                <p className="rounded-xl border border-amber-400/25 bg-amber-500/10 p-2.5 text-[11px] leading-relaxed text-amber-200">
+                  Large stream ({frames.length} frames, {metrics.formattedDuration} per loop). Turn screen brightness to max. For instant multi-MB transfer, use Share &amp; Export.
                 </p>
               )}
 
@@ -782,7 +848,7 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
                 <button
                   type="button"
                   onClick={handleDownloadQrPng}
-                  className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer"
+                  className="mt-1 inline-flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-[#0e1628] text-xs font-semibold text-white hover:bg-white/10 cursor-pointer transition-colors"
                 >
                   <Download className="h-4 w-4 text-teal-300" aria-hidden="true" />
                   <span>Save Current Frame as PNG</span>
@@ -792,60 +858,183 @@ export const QrShareModal: React.FC<QrShareModalProps> = ({
           </aside>
         </div>
       ) : (
-        /* Full-Screen Centered Share & Export Tab */
-        <div className="flex flex-1 items-center justify-center overflow-y-auto p-4 sm:p-8">
-          <div className="w-full max-w-lg space-y-3">
-            <div className="mb-4 text-center">
-              <h3 className="text-lg font-bold text-white">Device Share &amp; File Export</h3>
+        /* ================= SHARE & EXPORT VIEW (Refined Colors & Compact Document Card) ================= */
+        <div className="flex flex-1 items-center justify-center overflow-y-auto p-4 sm:p-8 bg-[#070b14]">
+          <div className="w-full max-w-lg space-y-3.5">
+            {/* Header info */}
+            <div className="text-center mb-1">
+              <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white">Device Share &amp; File Export</h3>
               <p className="mt-1 text-xs text-slate-400">
                 Use native OS sharing (AirDrop / Nearby Share) or generate PDF, Image &amp; Word files.
               </p>
             </div>
 
-            <button
-              type="button"
-              disabled={sysShareBusy}
-              onClick={handleDeviceSystemShare}
-              data-testid="qr-modal-system-share-btn"
-              className="flex min-h-[64px] w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-left hover:border-teal-400/50 hover:bg-slate-800/80 cursor-pointer"
-            >
-              <div className="flex items-center gap-3.5">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300">
-                  <Share2 className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <div className="text-sm font-bold text-white">Share Image via System Sheet</div>
-                  <div className="text-xs text-slate-400">
-                    {sysShareStatus || 'Send immediately via AirDrop, Nearby Share, WhatsApp, or save JPG'}
+            {/* Compact Document Preview Card (Dobson Square thumbnail & Title) */}
+            {activeDoc && (
+              <div className="flex items-center gap-3.5 rounded-2xl border border-white/10 bg-[#0e1628] p-3.5">
+                {activePage && (
+                  <div className="relative h-18 w-14 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-white shadow-md">
+                    <img
+                      src={activePage.processedDataUrl}
+                      alt={activeDoc.title}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h4 className="truncate text-sm sm:text-base font-bold text-white">
+                    {activeDoc.title}
+                  </h4>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    <span className="font-semibold text-teal-300">
+                      {activeDoc.pages.length} {activeDoc.pages.length === 1 ? 'page' : 'pages'}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {new Date(activeDoc.updatedAt || activeDoc.createdAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    {activeDoc.folder && (
+                      <>
+                        <span>·</span>
+                        <span className="capitalize">{activeDoc.folder}</span>
+                      </>
+                    )}
                   </div>
                 </div>
-              </div>
-              {sysShareStatus && <Check className="h-4 w-4 text-teal-400" aria-hidden="true" />}
-            </button>
 
-            {activeDoc && onOpenExport && (
+                {activeDoc.pages.length > 1 && (
+                  <div className="flex shrink-0 items-center gap-1 rounded-xl bg-white/10 p-1 border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setPageScope('active')}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                        pageScope === 'active'
+                          ? 'bg-teal-500 text-slate-950 font-bold'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      Page {clampedIdx + 1}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPageScope('all')}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                        pageScope === 'all'
+                          ? 'bg-teal-500 text-slate-950 font-bold'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      All {activeDoc.pages.length}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notification alert on share or copy */}
+            {(sysShareStatus || copyImageStatus) && (
+              <div className="flex items-center justify-center gap-1.5 rounded-xl border border-teal-500/40 bg-teal-500/15 py-2 px-3 text-xs font-semibold text-teal-300">
+                <Check className="h-4 w-4" aria-hidden="true" />
+                <span>{sysShareStatus || copyImageStatus}</span>
+              </div>
+            )}
+
+            {/* Tactile Action Cards Matching Reference Screenshot */}
+            <div className="space-y-2.5">
+              {/* 1. Share Image via System Sheet */}
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenExport(activeDoc, initialPageIndex);
-                }}
-                className="flex min-h-[64px] w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-left hover:border-teal-400/50 hover:bg-slate-800/80 cursor-pointer"
+                disabled={sysShareBusy || !activeDoc}
+                onClick={handleDeviceSystemShare}
+                data-testid="qr-modal-system-share-btn"
+                className="flex min-h-[66px] w-full items-center justify-between rounded-2xl border border-white/10 bg-[#0e1628] px-4 py-3 text-left hover:border-teal-400/50 hover:bg-[#121c32] cursor-pointer transition-colors disabled:opacity-40"
               >
                 <div className="flex items-center gap-3.5">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-slate-200">
-                    <FolderOpen className="h-5 w-5" aria-hidden="true" />
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300 border border-teal-500/30">
+                    <Share2 className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <div>
-                    <div className="text-sm font-bold text-white">Export as PDF, Image or Word</div>
+                    <div className="text-sm font-bold text-white">Share Image via System Sheet</div>
                     <div className="text-xs text-slate-400">
-                      Select pages, A4 paper layout, compression quality &amp; searchable OCR PDF
+                      Send immediately via AirDrop, Nearby Share, WhatsApp, or save JPG
                     </div>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                {sysShareStatus && <Check className="h-4 w-4 text-teal-400" aria-hidden="true" />}
               </button>
-            )}
+
+              {/* 2. Export as PDF, Image or Word */}
+              {activeDoc && onOpenExport && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenExport(activeDoc, initialPageIndex);
+                  }}
+                  className="flex min-h-[66px] w-full items-center justify-between rounded-2xl border border-white/10 bg-[#0e1628] px-4 py-3 text-left hover:border-teal-400/50 hover:bg-[#121c32] cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-slate-200 border border-white/10">
+                      <FolderOpen className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-bold text-white">Export as PDF, Image or Word</div>
+                      <div className="text-xs text-slate-400">
+                        Select pages, A4 paper layout, compression quality &amp; searchable OCR PDF
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                </button>
+              )}
+
+              {/* 3. Copy Image to Clipboard */}
+              {activeDoc && (
+                <button
+                  type="button"
+                  onClick={handleCopyImageToClipboard}
+                  className="flex min-h-[66px] w-full items-center justify-between rounded-2xl border border-white/10 bg-[#0e1628] px-4 py-3 text-left hover:border-teal-400/50 hover:bg-[#121c32] cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-slate-200 border border-white/10">
+                      <Copy className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <div className="text-sm font-bold text-white">Copy Page Image to Clipboard</div>
+                      <div className="text-xs text-slate-400">
+                        Copy high-resolution scan image to paste in Slack, WhatsApp, or docs
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                </button>
+              )}
+
+              {/* 4. Switch to QR Beam */}
+              <button
+                type="button"
+                onClick={() => setTab('qr')}
+                data-testid="qr-share-to-beam-btn"
+                className="flex min-h-[66px] w-full items-center justify-between rounded-2xl border border-teal-500/30 bg-teal-500/10 px-4 py-3 text-left hover:border-teal-400 hover:bg-teal-500/20 cursor-pointer transition-colors"
+              >
+                <div className="flex items-center gap-3.5">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                    <QrCode className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div>
+                    <div className="text-sm font-bold text-white">QR File Beam (Offline Transfer)</div>
+                    <div className="text-xs text-teal-300/80">
+                      Beam scans or any file up to 5 MB directly to another device camera
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-teal-400" aria-hidden="true" />
+              </button>
+            </div>
           </div>
         </div>
       )}

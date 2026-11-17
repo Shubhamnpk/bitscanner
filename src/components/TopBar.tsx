@@ -46,8 +46,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('library')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'library' || activeView === 'editor' || activeView === 'project'
-                ? 'border-teal-600 text-slate-900'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Docs
@@ -58,8 +58,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('tools')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'tools'
-                ? 'border-teal-600 text-slate-900'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Tools
@@ -70,8 +70,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('id_studio')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'id_studio'
-                ? 'border-teal-600 text-slate-900'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             ID Card
@@ -82,8 +82,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('profile')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'profile' || activeView === 'settings'
-                ? 'border-teal-600 text-slate-900'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
+                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             Profile

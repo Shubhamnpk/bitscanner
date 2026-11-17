@@ -165,10 +165,10 @@ export const InfoPagesView: React.FC<InfoPagesViewProps> = ({
                 haptics.tap();
                 onNavigatePage(t.id);
               }}
-              className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold cursor-pointer transition-colors ${
+              className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold cursor-pointer transition-all active:scale-95 ${
                 active
-                  ? 'bg-slate-900 text-white'
-                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white dark:shadow-sm'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
               }`}
             >
               <Icon className="h-3.5 w-3.5" aria-hidden="true" />

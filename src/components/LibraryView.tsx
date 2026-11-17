@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   MoreHorizontal,
+  MoreVertical,
   Pencil,
   PenTool,
   QrCode,
@@ -124,6 +125,21 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   const [draftTitle, setDraftTitle] = useState('');
   const [actionSheetDoc, setActionSheetDoc] = useState<ScanDocument | null>(null);
   const [sheetRenaming, setSheetRenaming] = useState(false);
+  const [menuOpenDocId, setMenuOpenDocId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!menuOpenDocId) return;
+    const handleClickOutside = () => setMenuOpenDocId(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpenDocId(null);
+    };
+    window.addEventListener('click', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpenDocId]);
 
   useEffect(() => {
     setViewMode(defaultViewMode);
@@ -173,21 +189,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button
                 key={folder.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveFolder(folder.id)}
                 className={`flex items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   active
-                    ? 'bg-teal-50 text-teal-900'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-teal-50 text-teal-900 dark:bg-teal-500/20 dark:text-teal-200'
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white'
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <Icon
-                    className={`h-4 w-4 ${active ? 'text-teal-600' : 'text-slate-400'}`}
+                    className={`h-4 w-4 ${active ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}
                     aria-hidden="true"
                   />
                   <span>{folder.label}</span>
                 </span>
-                <span className="text-xs font-mono-tabular text-slate-500">{count}</span>
+                <span className={`text-xs font-mono-tabular ${active ? 'text-teal-700 dark:text-teal-300 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{count}</span>
               </button>
             );
           })}
@@ -324,18 +342,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <button
                 key={folder.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => {
                   haptics.tap();
                   setActiveFolder(folder.id);
                 }}
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 min-h-[40px] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 active:scale-95 cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 min-h-[40px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 active:scale-95 cursor-pointer ${
                   active
-                    ? 'bg-slate-900 text-white'
-                    : 'border border-slate-200 bg-white text-slate-600'
+                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white dark:shadow-sm'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                 }`}
               >
                 <span>{folder.label}</span>
-                <span className={`font-mono-tabular ${active ? 'text-slate-300' : 'text-slate-400'}`}>
+                <span className={`font-mono-tabular ${active ? 'text-slate-300 dark:text-teal-100' : 'text-slate-400 dark:text-slate-400'}`}>
                   {count}
                 </span>
               </button>
@@ -387,7 +407,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               <option value="pages_desc">Most Pages</option>
             </select>
 
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5">
+            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800/90">
               <button
                 type="button"
                 aria-label="Grid view"
@@ -397,7 +417,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   setViewMode('grid');
                 }}
                 className={`flex h-9 w-9 items-center justify-center rounded-lg cursor-pointer transition-colors ${
-                  viewMode === 'grid' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'
+                  viewMode === 'grid'
+                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 <LayoutGrid className="h-4 w-4" aria-hidden="true" />
@@ -411,7 +433,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   setViewMode('list');
                 }}
                 className={`flex h-9 w-9 items-center justify-center rounded-lg cursor-pointer transition-colors ${
-                  viewMode === 'list' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:text-slate-800'
+                  viewMode === 'list'
+                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 <List className="h-4 w-4" aria-hidden="true" />

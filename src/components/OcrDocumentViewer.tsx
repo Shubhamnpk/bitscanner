@@ -157,7 +157,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             <option value="deu">German</option>
           </select>
 
-          <div className="flex flex-1 rounded-xl bg-slate-100 p-0.5">
+          <div className="flex flex-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5">
             {(
               [
                 { id: 'auto', label: 'Auto' },
@@ -172,8 +172,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 onClick={() => onChangeLayoutMode(mode.id)}
                 className={`flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition-colors cursor-pointer ${
                   ocrLayoutMode === mode.id
-                    ? 'bg-white text-teal-800 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
+                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`}
               >
                 {mode.label}
@@ -224,15 +224,15 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         </div>
 
         {/* View Mode Switcher */}
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1">
           <button
             type="button"
             data-testid="ocr-tab-layout"
             onClick={() => setActiveTab('layout')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'layout'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             {hasTables ? (
@@ -248,8 +248,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             onClick={() => setActiveTab('plain')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'plain'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
@@ -261,8 +261,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             onClick={() => setActiveTab('fields')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'fields'
-                ? 'bg-white text-teal-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
+                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />

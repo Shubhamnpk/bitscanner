@@ -41,6 +41,7 @@ import {
   formatByteSize,
   sanitizeFilenamePrefix,
   type AppSettings,
+  type DefaultShareMode,
   type ThemeMode,
 } from '../utils/settingsStore';
 import {
@@ -694,6 +695,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               ariaLabel="Preferred export format"
               onChange={(value) =>
                 onUpdateSettings({ defaultExportFormat: value as ExportFormat })
+              }
+            />
+          </FieldRow>
+
+          <FieldRow
+            label="Default share method"
+            hint="Action opened when tapping Share on documents"
+          >
+            <Segmented
+              value={settings.defaultShareMode || 'share'}
+              options={[
+                { value: 'share', label: 'Normal Share' },
+                { value: 'qr', label: 'QR Beam' },
+              ]}
+              ariaLabel="Default share method"
+              onChange={(value) =>
+                onUpdateSettings({ defaultShareMode: value as DefaultShareMode })
               }
             />
           </FieldRow>

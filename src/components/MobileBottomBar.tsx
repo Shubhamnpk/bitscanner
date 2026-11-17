@@ -43,7 +43,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             onNavigate('library');
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-            activeView === 'library' ? 'text-teal-700' : 'text-slate-500'
+            activeView === 'library' ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-500 dark:text-slate-400'
           }`}
         >
           <FolderOpen className="h-5 w-5" aria-hidden="true" />
@@ -59,8 +59,8 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
             activeView === 'tools' || activeView === 'id_studio'
-              ? 'text-teal-700'
-              : 'text-slate-500'
+              ? 'text-teal-700 dark:text-teal-300 font-bold'
+              : 'text-slate-500 dark:text-slate-400'
           }`}
         >
           <Grid2x2 className="h-5 w-5" aria-hidden="true" />
@@ -91,7 +91,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             onNavigate('profile');
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-            activeView === 'profile' ? 'text-teal-700' : 'text-slate-500'
+            activeView === 'profile' ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-500 dark:text-slate-400'
           }`}
         >
           <User className="h-5 w-5" aria-hidden="true" />

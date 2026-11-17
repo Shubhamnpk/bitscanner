@@ -145,10 +145,11 @@ export default function App() {
     selectedPages?: number[];
   } | null>(null);
 
-  const [qrShareState, setQrShareState] = useState<{
+  const [shareModalState, setShareModalState] = useState<{
     isOpen: boolean;
     doc: ScanDocument | null;
     pageIndex: number;
+    initialMode?: 'share' | 'qr';
   }>({ isOpen: false, doc: null, pageIndex: 0 });
 
   const [librarySignatureModalOpen, setLibrarySignatureModalOpen] = useState(false);
@@ -583,7 +584,12 @@ export default function App() {
       return;
     }
     if (toolId === 'qr_share') {
-      setQrShareState({ isOpen: true, doc: documents[0] || null, pageIndex: 0 });
+      setShareModalState({
+        isOpen: true,
+        doc: documents[0] || null,
+        pageIndex: 0,
+        initialMode: 'qr',
+      });
       return;
     }
     if (toolId === 'qr_scan') {
@@ -702,7 +708,12 @@ export default function App() {
             })
           }
           onShareProject={() =>
-            setQrShareState({ isOpen: true, doc: activeDocument, pageIndex: 0 })
+            setShareModalState({
+              isOpen: true,
+              doc: activeDocument,
+              pageIndex: 0,
+              initialMode: appSettings.defaultShareMode || 'share',
+            })
           }
           onOpenExport={(selectedPages) =>
             setExportState({
@@ -739,7 +750,12 @@ export default function App() {
               openScanner({ batch: false, mode: 'docs', appendToDocId: activeDocument.id })
             }
             onOpenShareModal={(pageIndex) =>
-              setQrShareState({ isOpen: true, doc: activeDocument, pageIndex })
+              setShareModalState({
+                isOpen: true,
+                doc: activeDocument,
+                pageIndex,
+                initialMode: appSettings.defaultShareMode || 'share',
+              })
             }
             onOpenExport={(pageIndex) => setExportState({ doc: activeDocument, pageIndex })}
             onBackToProject={() => {
@@ -763,7 +779,12 @@ export default function App() {
           onLaunchIdStudio={() => setActiveView('id_studio')}
           onLaunchSignatureStudio={() => setLibrarySignatureModalOpen(true)}
           onLaunchQrShare={() =>
-            setQrShareState({ isOpen: true, doc: documents[0] || null, pageIndex: 0 })
+            setShareModalState({
+              isOpen: true,
+              doc: documents[0] || null,
+              pageIndex: 0,
+              initialMode: 'qr',
+            })
           }
           onLaunchQrScan={() => openScanner({ mode: 'qr' })}
           onSaveImagesAsProject={(title, urls, folder) =>
@@ -825,7 +846,12 @@ export default function App() {
           }}
           onExportDocument={(doc) => setExportState({ doc, pageIndex: 0 })}
           onShareDocument={(doc) =>
-            setQrShareState({ isOpen: true, doc, pageIndex: 0 })
+            setShareModalState({
+              isOpen: true,
+              doc,
+              pageIndex: 0,
+              initialMode: appSettings.defaultShareMode || 'share',
+            })
           }
           onOpenQrScanner={() => openScanner({ mode: 'qr' })}
           onToggleStar={handleToggleStar}
@@ -869,11 +895,13 @@ export default function App() {
       />
 
       <QrShareModal
-        isOpen={qrShareState.isOpen}
-        document={qrShareState.doc}
+        isOpen={shareModalState.isOpen}
+        document={shareModalState.doc}
         availableDocuments={documents}
-        initialPageIndex={qrShareState.pageIndex}
-        onClose={() => setQrShareState({ isOpen: false, doc: null, pageIndex: 0 })}
+        initialPageIndex={shareModalState.pageIndex}
+        initialMode={shareModalState.initialMode || appSettings.defaultShareMode || 'share'}
+        defaultShareMode={appSettings.defaultShareMode || 'share'}
+        onClose={() => setShareModalState({ isOpen: false, doc: null, pageIndex: 0 })}
         onOpenExport={(doc, pageIndex) => setExportState({ doc, pageIndex })}
         onOpenQrScanner={() => openScanner({ mode: 'qr' })}
       />

@@ -2729,7 +2729,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={addTextStamp}
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 cursor-pointer transition-colors"
                       >
                         <Type className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Add Text</span>
@@ -2839,10 +2839,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                 key={sz}
                                 type="button"
                                 onClick={() => setStrokeSize(sz)}
-                                className={`rounded px-2 py-0.5 text-[11px] font-medium capitalize cursor-pointer ${
+                                className={`rounded px-2 py-0.5 text-[11px] font-medium capitalize cursor-pointer transition-colors ${
                                   strokeSize === sz
-                                    ? 'bg-slate-900 text-white'
-                                    : 'bg-white text-slate-600 border border-slate-200'
+                                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
+                                    : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                                 }`}
                               >
                                 {sz}
@@ -3458,7 +3458,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => addTextStamp()}
-                        className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white cursor-pointer"
+                        className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 cursor-pointer transition-colors"
                       >
                         <Type className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Add</span>

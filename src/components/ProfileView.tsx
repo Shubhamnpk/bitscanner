@@ -658,8 +658,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               <div>
                 <div className="text-sm font-semibold text-red-950">Erase local workspace</div>
                 <div className="mt-0.5 text-xs text-red-800/80">
-                  Deletes every project &amp; signature in this browser, then restores the three
-                  sample documents. This cannot be undone.
+                  Deletes every project &amp; signature in this browser .This cannot be undone.
                 </div>
               </div>
             </div>

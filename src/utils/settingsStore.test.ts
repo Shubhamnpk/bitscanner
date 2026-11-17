@@ -46,3 +46,15 @@ test('toggleFavoriteToolInList toggles without duplicates', () => {
   const twice = toggleFavoriteToolInList(once, 'images_to_pdf');
   assert.deepEqual(twice, ['merge_pdf']);
 });
+
+test('mergeSettingsPatch handles defaultShareMode safely', () => {
+  const next = mergeSettingsPatch(DEFAULT_APP_SETTINGS, {
+    defaultShareMode: 'qr',
+  });
+  assert.equal(next.defaultShareMode, 'qr');
+
+  const fallback = mergeSettingsPatch(DEFAULT_APP_SETTINGS, {
+    defaultShareMode: 'invalid' as never,
+  });
+  assert.equal(fallback.defaultShareMode, 'share');
+});
