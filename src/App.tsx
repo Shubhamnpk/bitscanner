@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   ActiveWorkspaceView,
   FolderId,
@@ -12,13 +12,10 @@ import {
   deleteDocumentFromDb,
   deleteSignatureFromDb,
   ensureSeedDocuments,
-  buildSampleDocuments,
-  loadAllDocuments,
   loadAllSignatures,
   resetWorkspaceDb,
   saveDocumentToDb,
   saveSignatureToDb,
-  setPersistenceEnabled,
 } from './utils/storage';
 import {
   loadAppSettings,
@@ -28,6 +25,13 @@ import {
   type AppSettings,
   type ToolId,
 } from './utils/settingsStore';
+import { applyBrowserThemeColor, applyThemeClass, resolveTheme } from './utils/theme';
+import {
+  base64UrlToUint8,
+  uint8ToDataUrl,
+  type DecodedQrPayload,
+} from './utils/qrTransfer';
+import { renderPdfFileToImages } from './utils/pdfTools';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TopBar } from './components/TopBar';
 import { MobileBottomBar } from './components/MobileBottomBar';
@@ -38,6 +42,7 @@ import { DocumentEditor } from './components/DocumentEditor';
 import { CameraScanner, type CameraScanMode } from './components/CameraScanner';
 import { IdCardStudio } from './components/IdCardStudio';
 import { ExportModal } from './components/ExportModal';
+import { QrShareModal } from './components/QrShareModal';
 import { KotlinBlueprintModal } from './components/KotlinBlueprintModal';
 import { SignatureModal, type SignatureDocPayload } from './components/SignatureModal';
 import { ToolsView } from './components/ToolsView';
@@ -52,8 +57,57 @@ import {
   processPagePipeline,
   renderPageThumbnail,
 } from './utils/imageProcessor';
-import { applyBrowserThemeColor, applyThemeClass, resolveTheme } from './utils/theme';
-import { DemoModeBanner } from './components/DemoModeBanner';
+
+function renderTextToDocumentPageDataUrl(title: string, bodyText: string): string {
+  const c = window.document.createElement('canvas');
+  c.width = 1000;
+  c.height = 1350;
+  const ctx = c.getContext('2d');
+  if (!ctx) return '';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  ctx.fillStyle = '#0f766e';
+  ctx.fillRect(0, 0, c.width, 16);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 34px system-ui, -apple-system, sans-serif';
+  ctx.fillText(title.slice(0, 48) || 'QR Received Note', 64, 96);
+
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(64, 126);
+  ctx.lineTo(936, 126);
+  ctx.stroke();
+
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '24px ui-monospace, SFMono-Regular, monospace';
+
+  const lines: string[] = [];
+  for (const rawLine of bodyText.split(/\r?\n/)) {
+    const words = rawLine.split(' ');
+    let cur = '';
+    for (const w of words) {
+      const cand = cur ? `${cur} ${w}` : w;
+      if (ctx.measureText(cand).width > 860 && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = cand;
+      }
+    }
+    lines.push(cur);
+  }
+
+  let y = 180;
+  for (const line of lines.slice(0, 34)) {
+    ctx.fillText(line, 64, y);
+    y += 34;
+  }
+
+  return c.toDataURL('image/jpeg', 0.9);
+}
 
 export default function App() {
   const [documents, setDocuments] = useState<ScanDocument[]>([]);
@@ -75,7 +129,7 @@ export default function App() {
   const [onboardingReplayOpen, setOnboardingReplayOpen] = useState(false);
 
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannerInitialMode, setScannerInitialMode] = useState<CameraScanMode>('docs');
+  const [scannerInitialMode, setScannerInitialMode] = useState<CameraScanMode>('auto');
   const [scannerInitialSource, setScannerInitialSource] = useState<'camera' | 'samples'>('camera');
   const [scannerInitialFiles, setScannerInitialFiles] = useState<File[] | null>(null);
   const [appendTargetDocId, setAppendTargetDocId] = useState<string | null>(null);
@@ -91,15 +145,14 @@ export default function App() {
     selectedPages?: number[];
   } | null>(null);
 
+  const [qrShareState, setQrShareState] = useState<{
+    isOpen: boolean;
+    doc: ScanDocument | null;
+    pageIndex: number;
+  }>({ isOpen: false, doc: null, pageIndex: 0 });
+
   const [librarySignatureModalOpen, setLibrarySignatureModalOpen] = useState(false);
   const [kotlinModalOpen, setKotlinModalOpen] = useState(false);
-
-  const [demoMode, setDemoMode] = useState(false);
-  const [demoLoading, setDemoLoading] = useState(false);
-  const liveWorkspaceRef = useRef<{ documents: ScanDocument[]; signatures: SavedSignature[] } | null>(
-    null
-  );
-  const demoDocumentsRef = useRef<ScanDocument[] | null>(null);
 
   const isAutostartBypass =
     typeof window !== 'undefined' &&
@@ -108,6 +161,24 @@ export default function App() {
   const shouldShowOnboarding =
     !loading &&
     (onboardingReplayOpen || (!appSettings.hasCompletedOnboarding && !isAutostartBypass));
+
+  useEffect(() => {
+    const mql =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)')
+        : null;
+
+    const apply = () => {
+      const resolved = resolveTheme(appSettings.theme, Boolean(mql?.matches));
+      applyThemeClass(resolved);
+      applyBrowserThemeColor(resolved);
+    };
+
+    apply();
+    if (!mql || appSettings.theme !== 'system') return;
+    mql.addEventListener('change', apply);
+    return () => mql.removeEventListener('change', apply);
+  }, [appSettings.theme]);
 
   useEffect(() => {
     let mounted = true;
@@ -124,73 +195,6 @@ export default function App() {
       mounted = false;
     };
   }, []);
-
-  // Theme: follow the OS when set to "system", otherwise apply the explicit choice.
-  useEffect(() => {
-    const media = window.matchMedia?.('(prefers-color-scheme: dark)');
-    const sync = () => {
-      const resolved = resolveTheme(appSettings.theme, media?.matches ?? false);
-      applyThemeClass(resolved);
-      applyBrowserThemeColor(resolved);
-    };
-    sync();
-    media?.addEventListener?.('change', sync);
-    return () => media?.removeEventListener?.('change', sync);
-  }, [appSettings.theme]);
-
-  const enterDemoMode = async () => {
-    if (demoMode || demoLoading) return;
-    setDemoLoading(true);
-    liveWorkspaceRef.current = { documents, signatures: savedSignatures };
-    try {
-      if (!demoDocumentsRef.current) {
-        demoDocumentsRef.current = await buildSampleDocuments();
-      }
-      setPersistenceEnabled(false);
-      setDocuments(demoDocumentsRef.current);
-      setSavedSignatures([]);
-      setDemoMode(true);
-      setDraftDocument(null);
-      setActiveDocId(null);
-      setActiveView('library');
-    } finally {
-      setDemoLoading(false);
-    }
-  };
-
-  const exitDemoMode = async () => {
-    if (!demoMode) return;
-    setPersistenceEnabled(true);
-    setDemoMode(false);
-    setDraftDocument(null);
-    setActiveDocId(null);
-    setActiveView('library');
-    const snapshot = liveWorkspaceRef.current;
-    liveWorkspaceRef.current = null;
-    if (snapshot) {
-      setDocuments(snapshot.documents);
-      setSavedSignatures(snapshot.signatures);
-    } else {
-      const [docs, sigs] = await Promise.all([loadAllDocuments(), loadAllSignatures()]);
-      setDocuments(docs);
-      setSavedSignatures(sigs);
-    }
-  };
-
-  // Ctrl/Cmd + Shift + D toggles the demo workspace from anywhere.
-  useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
-      if (event.key.toLowerCase() !== 'd') return;
-      event.preventDefault();
-      if (demoMode) void exitDemoMode();
-      else void enterDemoMode();
-    };
-    window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
-    // The handlers close over documents/signatures on purpose: they snapshot them at toggle time.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoMode, demoLoading, documents, savedSignatures]);
 
   const handleUpdateSettings = (patch: Partial<AppSettings>) => {
     setAppSettings((prev) => {
@@ -224,7 +228,7 @@ export default function App() {
     appendToDocId?: string | null;
   }) => {
     setAppendTargetDocId(opts?.appendToDocId ?? null);
-    setScannerInitialMode(opts?.mode ?? (opts?.batch ? 'batch' : 'docs'));
+    setScannerInitialMode(opts?.mode ?? (opts?.batch ? 'batch' : 'auto'));
     setScannerInitialSource(opts?.source ?? 'camera');
     setScannerInitialFiles(opts?.files ?? null);
     setScannerOpen(true);
@@ -339,12 +343,14 @@ export default function App() {
   const handleSaveImagesAsProject = async (
     title: string,
     imageUrls: string[],
-    folder: ScanDocument['folder'] = 'documents'
+    folder: ScanDocument['folder'] = 'documents',
+    ocrTexts?: string[]
   ) => {
     if (imageUrls.length === 0) return;
     const now = Date.now();
     const builtPages: ScannedPage[] = [];
-    for (const url of imageUrls) {
+    for (let i = 0; i < imageUrls.length; i++) {
+      const url = imageUrls[i];
       const processed = await processPagePipeline(
         url,
         'original',
@@ -371,7 +377,7 @@ export default function App() {
         flipH: false,
         annotations: [],
         watermark: { ...DEFAULT_WATERMARK },
-        ocrText: '',
+        ocrText: ocrTexts?.[i] || '',
         width: processed.width,
         height: processed.height,
         createdAt: now,
@@ -394,6 +400,72 @@ export default function App() {
     setActiveDocId(doc.id);
     setReturnToProjectOnCommit(false);
     setActiveView('project');
+  };
+
+  const handleQrFileReceived = async (payload: DecodedQrPayload) => {
+    if (payload.kind === 'bitscan_doc' && payload.pages && payload.pages.length > 0) {
+      const urls = payload.pages.map((p) => uint8ToDataUrl(base64UrlToUint8(p.dataB64), p.mime));
+      const ocrTexts = payload.pages.map((p) => p.ocrText || '');
+      await handleSaveImagesAsProject(payload.title || 'QR Shared Scan', urls, 'documents', ocrTexts);
+      return;
+    }
+
+    if (payload.kind === 'text' && payload.text !== undefined) {
+      const pageImg = renderTextToDocumentPageDataUrl(payload.title || 'QR Note', payload.text);
+      if (pageImg) {
+        await handleSaveImagesAsProject(payload.title || 'QR Note', [pageImg], 'notes', [
+          payload.text,
+        ]);
+      }
+      return;
+    }
+
+    if (payload.kind === 'raw_file' && payload.fileBytes) {
+      if (payload.mime.startsWith('image/')) {
+        const url = uint8ToDataUrl(payload.fileBytes, payload.mime);
+        await handleSaveImagesAsProject(payload.title || 'QR Image', [url], 'documents');
+        return;
+      }
+
+      if (payload.mime === 'application/pdf' || /\.pdf$/i.test(payload.filename)) {
+        const copy = new Uint8Array(payload.fileBytes.byteLength);
+        copy.set(payload.fileBytes);
+        const file = new File([copy.buffer], payload.filename, { type: 'application/pdf' });
+        const rendered = await renderPdfFileToImages(file, { scale: 2, format: 'jpeg' });
+        if (rendered.length > 0) {
+          await handleSaveImagesAsProject(
+            payload.title || 'QR PDF Document',
+            rendered.map((r) => r.dataUrl),
+            'documents'
+          );
+          return;
+        }
+      }
+
+      if (payload.mime.startsWith('text/') || /\.(txt|json|csv|md)$/i.test(payload.filename)) {
+        const text = new TextDecoder().decode(payload.fileBytes);
+        const pageImg = renderTextToDocumentPageDataUrl(payload.title || payload.filename, text);
+        if (pageImg) {
+          await handleSaveImagesAsProject(payload.title || payload.filename, [pageImg], 'notes', [
+            text,
+          ]);
+          return;
+        }
+      }
+
+      // Trigger direct download for arbitrary binary file formats
+      const copy = new Uint8Array(payload.fileBytes.byteLength);
+      copy.set(payload.fileBytes);
+      const blob = new Blob([copy.buffer], { type: payload.mime });
+      const dlUrl = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = dlUrl;
+      a.download = payload.filename;
+      window.document.body.appendChild(a);
+      a.click();
+      window.document.body.removeChild(a);
+      window.setTimeout(() => URL.revokeObjectURL(dlUrl), 1000);
+    }
   };
 
   const handleDeleteDocument = (docId: string) => {
@@ -510,17 +582,19 @@ export default function App() {
       setLibrarySignatureModalOpen(true);
       return;
     }
+    if (toolId === 'qr_share') {
+      setQrShareState({ isOpen: true, doc: documents[0] || null, pageIndex: 0 });
+      return;
+    }
+    if (toolId === 'qr_scan') {
+      openScanner({ mode: 'qr' });
+      return;
+    }
     setToolsInitialId(toolId ?? null);
     setActiveView('tools');
   };
 
   const handleResetLocalWorkspace = async () => {
-    if (demoMode) {
-      setDocuments(await buildSampleDocuments());
-      setSavedSignatures([]);
-      setActiveView('library');
-      return;
-    }
     const docs = await resetWorkspaceDb();
     setDocuments(docs);
     setSavedSignatures([]);
@@ -530,33 +604,26 @@ export default function App() {
     setActiveView('library');
   };
 
-  /**
-   * Merges an imported backup into the live workspace: matching IDs replace the
-   * existing record, everything else is appended. Nothing is deleted.
-   */
   const handleImportWorkspace = async (
-    importedDocuments: ScanDocument[],
-    importedSignatures: SavedSignature[]
+    importedDocs: ScanDocument[],
+    importedSigs: SavedSignature[]
   ) => {
-    const documentsById = new Map(documents.map((doc) => [doc.id, doc]));
-    for (const doc of importedDocuments) documentsById.set(doc.id, doc);
-    const nextDocuments = Array.from(documentsById.values()).sort(
-      (a, b) => b.updatedAt - a.updatedAt
-    );
-
-    const signaturesById = new Map(savedSignatures.map((sig) => [sig.id, sig]));
-    for (const sig of importedSignatures) signaturesById.set(sig.id, sig);
-    const nextSignatures = Array.from(signaturesById.values()).sort(
-      (a, b) => b.createdAt - a.createdAt
-    );
-
-    setDocuments(nextDocuments);
-    setSavedSignatures(nextSignatures);
-
-    await Promise.all([
-      ...importedDocuments.map((doc) => saveDocumentToDb(doc)),
-      ...importedSignatures.map((sig) => saveSignatureToDb(sig)),
-    ]);
+    for (const doc of importedDocs) {
+      await saveDocumentToDb(doc);
+    }
+    for (const sig of importedSigs) {
+      await saveSignatureToDb(sig);
+    }
+    setDocuments((prev) => {
+      const map = new Map(prev.map((d) => [d.id, d]));
+      for (const doc of importedDocs) map.set(doc.id, doc);
+      return Array.from(map.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+    setSavedSignatures((prev) => {
+      const map = new Map(prev.map((s) => [s.id, s]));
+      for (const sig of importedSigs) map.set(sig.id, sig);
+      return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+    });
   };
 
   const navigateTopOrBottom = (view: ActiveWorkspaceView) => {
@@ -597,7 +664,7 @@ export default function App() {
         activeView={activeView}
         hideAll={hideMainChrome}
         onNavigate={navigateTopOrBottom}
-        onOpenNewScan={() => openScanner({ batch: false })}
+        onOpenNewScan={() => openScanner({ mode: 'auto' })}
       />
 
       <OfflineIndicator />
@@ -634,6 +701,9 @@ export default function App() {
               files: Array.from(files),
             })
           }
+          onShareProject={() =>
+            setQrShareState({ isOpen: true, doc: activeDocument, pageIndex: 0 })
+          }
           onOpenExport={(selectedPages) =>
             setExportState({
               doc: activeDocument,
@@ -668,6 +738,9 @@ export default function App() {
             onAddPagesToDoc={() =>
               openScanner({ batch: false, mode: 'docs', appendToDocId: activeDocument.id })
             }
+            onOpenShareModal={(pageIndex) =>
+              setQrShareState({ isOpen: true, doc: activeDocument, pageIndex })
+            }
             onOpenExport={(pageIndex) => setExportState({ doc: activeDocument, pageIndex })}
             onBackToProject={() => {
               setReturnToProjectOnCommit(false);
@@ -689,7 +762,13 @@ export default function App() {
           onToggleFavoriteTool={handleToggleFavoriteTool}
           onLaunchIdStudio={() => setActiveView('id_studio')}
           onLaunchSignatureStudio={() => setLibrarySignatureModalOpen(true)}
-          onSaveImagesAsProject={handleSaveImagesAsProject}
+          onLaunchQrShare={() =>
+            setQrShareState({ isOpen: true, doc: documents[0] || null, pageIndex: 0 })
+          }
+          onLaunchQrScan={() => openScanner({ mode: 'qr' })}
+          onSaveImagesAsProject={(title, urls, folder) =>
+            handleSaveImagesAsProject(title, urls, folder)
+          }
           onBackToLibrary={() => setActiveView('library')}
         />
       ) : activeView === 'profile' ? (
@@ -745,11 +824,15 @@ export default function App() {
             setActiveView('project');
           }}
           onExportDocument={(doc) => setExportState({ doc, pageIndex: 0 })}
+          onShareDocument={(doc) =>
+            setQrShareState({ isOpen: true, doc, pageIndex: 0 })
+          }
+          onOpenQrScanner={() => openScanner({ mode: 'qr' })}
           onToggleStar={handleToggleStar}
           onRenameDocument={handleRenameDocument}
           onEditProject={(doc) => setEditingProjectDoc(doc)}
           onDeleteDocument={handleDeleteDocument}
-          onStartNewScan={() => openScanner({ mode: 'docs' })}
+          onStartNewScan={() => openScanner({ mode: 'auto' })}
           onOpenIdStudio={() => setActiveView('id_studio')}
           onOpenToolsSpace={handleOpenToolShortcut}
           onCreateSignature={() => setLibrarySignatureModalOpen(true)}
@@ -761,7 +844,7 @@ export default function App() {
       <MobileBottomBar
         activeView={activeView}
         onNavigate={navigateTopOrBottom}
-        onOpenNewScan={() => openScanner({ mode: 'docs' })}
+        onOpenNewScan={() => openScanner({ mode: 'auto' })}
       />
 
       <CameraScanner
@@ -780,6 +863,19 @@ export default function App() {
         }}
         onCompletePages={handleCompleteScannedPages}
         onCompleteIdPair={handleCompleteIdPair}
+        onQrFileReceived={(payload) => {
+          void handleQrFileReceived(payload);
+        }}
+      />
+
+      <QrShareModal
+        isOpen={qrShareState.isOpen}
+        document={qrShareState.doc}
+        availableDocuments={documents}
+        initialPageIndex={qrShareState.pageIndex}
+        onClose={() => setQrShareState({ isOpen: false, doc: null, pageIndex: 0 })}
+        onOpenExport={(doc, pageIndex) => setExportState({ doc, pageIndex })}
+        onOpenQrScanner={() => openScanner({ mode: 'qr' })}
       />
 
       <ProjectEditModal
@@ -832,10 +928,6 @@ export default function App() {
         isOpen={kotlinModalOpen}
         onClose={() => setKotlinModalOpen(false)}
       />
-
-      {(demoMode || demoLoading) && (
-        <DemoModeBanner loading={demoLoading} onExit={() => void exitDemoMode()} />
-      )}
     </div>
   );
 }

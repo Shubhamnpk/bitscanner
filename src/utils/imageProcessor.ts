@@ -15,6 +15,7 @@ import {
   detectDocumentQuadDetailed,
   detectDocumentQuadFromRgba,
   estimateOutputDimensions,
+  type ScanCornerHint,
 } from './cvGeometry';
 import { applyPaperFinish, estimatePaperGains } from './magicColor';
 
@@ -52,7 +53,10 @@ export function drawToCanvas(
  * Automatically detects the 4 corners of a document in an image using multi-channel
  * RGBA color contrast + Sobel edges + convex hull 4-vertex fitting.
  */
-export async function detectCornersFromDataUrl(src: string): Promise<QuadCorners> {
+export async function detectCornersFromDataUrl(
+  src: string,
+  options?: { scanHint?: ScanCornerHint }
+): Promise<QuadCorners> {
   const img = await loadImage(src);
   const small = drawToCanvas(img, 220);
   const ctx = small.getContext('2d', { willReadFrequently: true });
@@ -65,19 +69,20 @@ export async function detectCornersFromDataUrl(src: string): Promise<QuadCorners
     ];
   }
   const { data, width, height } = ctx.getImageData(0, 0, small.width, small.height);
-  return detectDocumentQuadFromRgba(data, width, height);
+  return detectDocumentQuadFromRgba(data, width, height, { scanHint: options?.scanHint });
 }
 
-/**
- * Fast synchronous frame edge detector for live camera viewfinder quad overlay.
- * Accounts for CSS `object-cover` aspect cropping and digital `zoom` so the overlay
- * tracks the exact visible corners at any gesture zoom level.
- */
-export function detectCornersFromVideoOrImage(
+export function detectCornersDetailedFromVideoOrImage(
   source: HTMLVideoElement | HTMLImageElement,
   scratchCanvas: HTMLCanvasElement,
-  options?: { zoom?: number; viewportWidth?: number; viewportHeight?: number; viewportAspect?: number }
-): QuadCorners | null {
+  options?: {
+    zoom?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+    viewportAspect?: number;
+    scanHint?: ScanCornerHint;
+  }
+): { quad: QuadCorners; confidence: number; aspectRatio: number } | null {
   const sw = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
   const sh = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
   if (!sw || !sh) return null;
@@ -99,9 +104,28 @@ export function detectCornersFromVideoOrImage(
   if (!ctx) return null;
   ctx.drawImage(source, crop.sx, crop.sy, crop.sWidth, crop.sHeight, 0, 0, w, h);
   const { data } = ctx.getImageData(0, 0, w, h);
-  const result = detectDocumentQuadDetailed(data, w, h);
+  const result = detectDocumentQuadDetailed(data, w, h, { scanHint: options?.scanHint });
   if (result.confidence < 0.22) return null;
-  return result.quad;
+  return { quad: result.quad, confidence: result.confidence, aspectRatio: w / Math.max(1, h) };
+}
+
+/**
+ * Fast synchronous frame edge detector for live camera viewfinder quad overlay.
+ * Accounts for CSS `object-cover` aspect cropping and digital `zoom` so the overlay
+ * tracks the exact visible corners at any gesture zoom level.
+ */
+export function detectCornersFromVideoOrImage(
+  source: HTMLVideoElement | HTMLImageElement,
+  scratchCanvas: HTMLCanvasElement,
+  options?: {
+    zoom?: number;
+    viewportWidth?: number;
+    viewportHeight?: number;
+    viewportAspect?: number;
+    scanHint?: ScanCornerHint;
+  }
+): QuadCorners | null {
+  return detectCornersDetailedFromVideoOrImage(source, scratchCanvas, options)?.quad ?? null;
 }
 
 /**

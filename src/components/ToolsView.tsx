@@ -17,6 +17,8 @@ import {
   Loader2,
   PenTool,
   Plus,
+  QrCode,
+  Scan,
   ScanText,
   Search,
   Sparkles,
@@ -56,6 +58,8 @@ interface ToolsViewProps {
   onToggleFavoriteTool: (toolId: ToolId) => void;
   onLaunchIdStudio: () => void;
   onLaunchSignatureStudio: () => void;
+  onLaunchQrShare?: () => void;
+  onLaunchQrScan?: () => void;
   onSaveImagesAsProject: (title: string, imageUrls: string[], folder?: ScanDocument['folder']) => void;
   onBackToLibrary: () => void;
 }
@@ -69,6 +73,8 @@ const TOOL_ICON_MAP: Record<ToolId, React.FC<{ className?: string }>> = {
   ocr_extract: ScanText,
   sign_doc: PenTool,
   images_to_video: Film,
+  qr_share: QrCode,
+  qr_scan: Scan,
 };
 
 export const ToolsView: React.FC<ToolsViewProps> = ({
@@ -78,6 +84,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
   onToggleFavoriteTool,
   onLaunchIdStudio,
   onLaunchSignatureStudio,
+  onLaunchQrShare,
+  onLaunchQrScan,
   onSaveImagesAsProject,
   onBackToLibrary,
 }) => {
@@ -171,6 +179,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
     }
     if (id === 'sign_doc') {
       onLaunchSignatureStudio();
+      return;
+    }
+    if (id === 'qr_share' && onLaunchQrShare) {
+      onLaunchQrShare();
+      return;
+    }
+    if (id === 'qr_scan' && onLaunchQrScan) {
+      onLaunchQrScan();
       return;
     }
     setActiveTool(id);

@@ -13,6 +13,7 @@ import {
   Plus,
   ScanText,
   Search,
+  Share2,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -36,6 +37,7 @@ interface ProjectDetailsViewProps {
   onOpenPage: (pageIndex: number, mode: 'view' | 'edit') => void;
   onAddPagesWithCamera: () => void;
   onImportFilesToProject: (files: FileList) => void;
+  onShareProject?: () => void;
   onOpenExport: (pageIndices?: number[]) => void;
   onToggleStar: () => void;
   onDeleteProject: () => void;
@@ -60,6 +62,7 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
   onOpenPage,
   onAddPagesWithCamera,
   onImportFilesToProject,
+  onShareProject,
   onOpenExport,
   onToggleStar,
   onDeleteProject,
@@ -371,6 +374,22 @@ export const ProjectDetailsView: React.FC<ProjectDetailsViewProps> = ({
             >
               <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
             </button>
+
+            {onShareProject && (
+              <button
+                type="button"
+                onClick={() => {
+                  haptics.tap();
+                  onShareProject();
+                }}
+                data-testid="project-share-btn"
+                aria-label="Share project via QR or device"
+                title="Share"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              >
+                <Share2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
 
             <button
               type="button"

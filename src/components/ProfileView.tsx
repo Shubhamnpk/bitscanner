@@ -416,53 +416,59 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             </form>
           ) : (
             <>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 flex-1 flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-4">
-                  <div
-                    className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-xl font-bold text-white shadow-lg shadow-teal-900/15 ring-4 ring-white/80 sm:h-[72px] sm:w-[72px]"
-                    style={{ backgroundColor: settings.avatarColor || '#0d9488' }}
-                  >
-                    {initials || <User className="h-7 w-7" aria-hidden="true" />}
-                  </div>
-
-                  <div className="min-w-0">
-                    <h1 className="truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
-                      {settings.displayName}
-                    </h1>
-                    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-                      <span className="font-semibold text-teal-700">{settings.accountHandle}</span>
-                      <span className="text-slate-300" aria-hidden="true">
-                        ·
-                      </span>
-                      <span className="truncate text-slate-500">{settings.email}</span>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50/90 px-2 py-0.5 text-[11px] font-semibold text-teal-800">
-                        <Lock className="h-3 w-3" aria-hidden="true" />
-                        Local-only
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                        <CalendarDays className="h-3 w-3 text-slate-400" aria-hidden="true" />
-                        Since {memberSince}
-                      </span>
-                    </div>
-                  </div>
+              <div className="flex items-start gap-3.5 sm:gap-4">
+                <div
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-white shadow-md shadow-slate-900/15 ring-1 ring-black/10 sm:h-16 sm:w-16 sm:text-xl"
+                  style={{ backgroundColor: settings.avatarColor || '#0d9488' }}
+                >
+                  {initials || <User className="h-6 w-6 sm:h-7 sm:w-7" aria-hidden="true" />}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={openEditProfile}
-                  data-testid="profile-edit-btn"
-                  className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/90 px-3 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-white hover:text-slate-900 cursor-pointer"
-                >
-                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="hidden sm:inline">Edit Profile</span>
-                  <span className="sm:hidden">Edit</span>
-                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">
+                      {settings.displayName}
+                    </h1>
+                    <button
+                      type="button"
+                      onClick={openEditProfile}
+                      data-testid="profile-edit-btn"
+                      className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/90 px-2.5 sm:px-3 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-white hover:text-slate-900 cursor-pointer"
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="hidden sm:inline">Edit Profile</span>
+                      <span className="sm:hidden">Edit</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs">
+                    <span className="shrink-0 font-semibold text-teal-700">
+                      {settings.accountHandle}
+                    </span>
+                    <span className="shrink-0 text-slate-400" aria-hidden="true">
+                      ·
+                    </span>
+                    <span className="min-w-0 truncate text-slate-500">{settings.email}</span>
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium text-slate-500">
+                    <span className="inline-flex items-center gap-1 font-semibold text-teal-700">
+                      <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span>Local-only</span>
+                    </span>
+                    <span className="text-slate-300" aria-hidden="true">
+                      •
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-slate-500">
+                      <CalendarDays className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+                      <span>Since {memberSince}</span>
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Workspace Summary Numbers */}
-              <div className="mt-5 grid grid-cols-4 divide-x divide-slate-200/80 border-t border-slate-200 pt-4 text-center">
+              <div className="mt-4 grid grid-cols-4 divide-x divide-slate-200/80 rounded-2xl border border-slate-200/80 bg-slate-50/75 py-2.5 text-center">
                 <HeroStat
                   value={documents.length}
                   label={documents.length === 1 ? 'Project' : 'Projects'}

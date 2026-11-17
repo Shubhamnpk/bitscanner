@@ -3,12 +3,17 @@ import {
   BookOpen,
   Camera,
   Check,
+  Copy,
   CreditCard,
+  Download,
   FileText,
+  FolderPlus,
   Grid3x3,
   ImagePlus,
   Layers,
   Maximize2,
+  QrCode,
+  RotateCcw,
   RotateCw,
   SlidersHorizontal,
   Sparkles,
@@ -21,19 +26,28 @@ import {
 import type { FilterPreset, QuadCorners, ScanDocument, ScannedPage } from '../types/scanner';
 import { DEFAULT_ADJUSTMENTS, DEFAULT_WATERMARK } from '../types/scanner';
 import { useHaptics } from '../hooks/useHaptics';
-import { clamp, quadsAreClose, smoothQuadCorners } from '../utils/cvGeometry';
+import { clamp, classifyScannedSceneHint, quadsAreClose, smoothQuadCorners, type AutoDetectedScene, type ScanCornerHint } from '../utils/cvGeometry';
 import {
   captureVisibleFeedFrame,
+  detectCornersDetailedFromVideoOrImage,
   detectCornersFromDataUrl,
-  detectCornersFromVideoOrImage,
   loadImage,
   perspectiveDewarp,
   processPagePipeline,
 } from '../utils/imageProcessor';
+import {
+  createCollectorState,
+  decodeQrDetailedFromMediaSource,
+  ingestQrPayload,
+  summarizeCollectorProgress,
+  type DecodedQrPayload,
+  type QrStreamCollectorState,
+} from '../utils/qrTransfer';
+import { formatByteSize } from '../utils/settingsStore';
 import { SAMPLE_SOURCES } from '../utils/storage';
 import { PerspectiveCropCanvas } from './PerspectiveCropCanvas';
 
-export type CameraScanMode = 'docs' | 'id_card' | 'book' | 'batch';
+export type CameraScanMode = 'auto' | 'docs' | 'id_card' | 'book' | 'qr' | 'batch';
 
 interface QueuedCapture {
   id: string;
@@ -57,12 +71,15 @@ interface CameraScannerProps {
     meta: { title: string; folder: ScanDocument['folder']; appendToDocId?: string | null }
   ) => void;
   onCompleteIdPair?: (frontOriginalUrl: string, frontQuad: QuadCorners, backOriginalUrl: string, backQuad: QuadCorners) => void;
+  onQrFileReceived?: (payload: DecodedQrPayload, action: 'save_to_library' | 'save_note') => void;
 }
 
-const MODE_ITEMS: Array<{ id: 'docs' | 'id_card' | 'book'; label: string; icon: React.FC<{ className?: string }> }> = [
+const MODE_ITEMS: Array<{ id: 'auto' | 'docs' | 'id_card' | 'book' | 'qr'; label: string; icon: React.FC<{ className?: string }> }> = [
+  { id: 'auto', label: 'Auto', icon: Sparkles },
   { id: 'docs', label: 'Docs', icon: FileText },
   { id: 'id_card', label: 'ID Card', icon: CreditCard },
   { id: 'book', label: 'Book', icon: BookOpen },
+  { id: 'qr', label: 'QR File', icon: QrCode },
 ];
 
 const DEMO_SCENES: Array<{ id: string; label: string; url: string; modeHint?: CameraScanMode }> = [
@@ -91,7 +108,7 @@ async function splitHorizontalSpread(dataUrl: string): Promise<[string, string]>
 
 export const CameraScanner: React.FC<CameraScannerProps> = ({
   isOpen,
-  initialMode = 'docs',
+  initialMode = 'auto',
   initialSource = 'camera',
   initialFiles = null,
   appendTargetDocId = null,
@@ -101,14 +118,34 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   onClose,
   onCompletePages,
   onCompleteIdPair,
+  onQrFileReceived,
 }) => {
   const haptics = useHaptics();
 
-  const [scanMode, setScanMode] = useState<'docs' | 'id_card' | 'book'>(
-    initialMode === 'id_card' || initialMode === 'book' ? initialMode : 'docs'
+  const [scanMode, setScanMode] = useState<'auto' | 'docs' | 'id_card' | 'book' | 'qr'>(
+    initialMode === 'docs' || initialMode === 'id_card' || initialMode === 'book' || initialMode === 'qr'
+      ? initialMode
+      : 'auto'
   );
+  const [autoDetectedScene, setAutoDetectedScene] = useState<AutoDetectedScene>('document');
+  const [splitAutoSpread, setSplitAutoSpread] = useState(false);
   const [isMultiMode, setIsMultiMode] = useState(initialMode === 'batch');
   const [stage, setStage] = useState<'viewfinder' | 'crop_review'>('viewfinder');
+
+  const activeCornerHint: ScanCornerHint =
+    scanMode === 'id_card' ? 'id_card' : scanMode === 'book' ? 'book' : scanMode === 'auto' ? 'auto' : 'docs';
+
+  // QR continuous scanning state
+  const [qrCollector, setQrCollector] = useState<QrStreamCollectorState>(() => createCollectorState());
+  const qrCollectorRef = useRef<QrStreamCollectorState>(qrCollector);
+  qrCollectorRef.current = qrCollector;
+  const [qrCompletedPayload, setQrCompletedPayload] = useState<DecodedQrPayload | null>(null);
+  const [qrPlainText, setQrPlainText] = useState<string | null>(null);
+  const [qrScanNotice, setQrScanNotice] = useState<string>('');
+  const [qrChunkFlash, setQrChunkFlash] = useState(false);
+  const [qrCopied, setQrCopied] = useState(false);
+  const qrScratchCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const qrBusyRef = useRef(false);
 
   // Viewfinder controls (gesture zoom + top-right Flash & Options HUD)
   const [zoomLevel, setZoomLevel] = useState<number>(1.0);
@@ -271,7 +308,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   // Reset when opened/closed
   useEffect(() => {
     if (isOpen) {
-      setScanMode(initialMode === 'id_card' || initialMode === 'book' ? initialMode : 'docs');
+      const nextMode =
+        initialMode === 'docs' || initialMode === 'id_card' || initialMode === 'book' || initialMode === 'qr'
+          ? initialMode
+          : 'auto';
+      setScanMode(nextMode);
+      setAutoDetectedScene('document');
+      setSplitAutoSpread(false);
       setIsMultiMode(initialMode === 'batch');
       setPreferDemoLens(initialSource === 'samples');
       setStage(initialFiles && initialFiles.length > 0 ? 'crop_review' : 'viewfinder');
@@ -283,6 +326,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       pinchStartRef.current = null;
       setOptionsOpen(false);
       setDemoSceneIdx(initialSource === 'samples' ? 0 : initialMode === 'id_card' ? 2 : 0);
+      setQrCollector(createCollectorState());
+      setQrCompletedPayload(null);
+      setQrPlainText(null);
+      setQrScanNotice('');
+      setQrCopied(false);
 
       if (initialFiles && initialFiles.length > 0) {
         let cancelled = false;
@@ -297,8 +345,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 reader.readAsDataURL(file);
               });
               if (!dataUrl || cancelled) continue;
+              const hint: ScanCornerHint =
+                nextMode === 'id_card' ? 'id_card' : nextMode === 'book' ? 'book' : nextMode === 'auto' ? 'auto' : 'docs';
               const quad: QuadCorners = autoEdgeDetect
-                ? await detectCornersFromDataUrl(dataUrl)
+                ? await detectCornersFromDataUrl(dataUrl, { scanHint: hint })
                 : [
                     { x: 0.04, y: 0.04 },
                     { x: 0.96, y: 0.04 },
@@ -390,9 +440,17 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     }
   }, [flashMode, cameraActive]);
 
-  // Real-time live document corner tracking overlay with temporal EMA smoothing & lock stability
+  // Real-time live document corner tracking overlay (paused during explicit QR mode or active QR overlay in Auto mode)
   useEffect(() => {
-    if (!isOpen || stage !== 'viewfinder' || !liveEdgeOn || (cameraStatus !== 'active' && cameraStatus !== 'demo')) {
+    const qrOverlayActive = Boolean(qrCompletedPayload || qrPlainText || qrCollector.total > 0);
+    if (
+      !isOpen ||
+      stage !== 'viewfinder' ||
+      scanMode === 'qr' ||
+      (scanMode === 'auto' && qrOverlayActive) ||
+      !liveEdgeOn ||
+      (cameraStatus !== 'active' && cameraStatus !== 'demo')
+    ) {
       setLiveQuad(null);
       setEdgeLocked(false);
       lastRawQuadRef.current = null;
@@ -410,19 +468,22 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       if (!canvas) return;
       const srcEl = cameraActive ? videoRef.current : demoImgRef.current;
       if (!srcEl) return;
-      const detected = detectCornersFromVideoOrImage(srcEl, canvas, {
+      const detailed = detectCornersDetailedFromVideoOrImage(srcEl, canvas, {
         zoom: zoomLevel,
         viewportWidth: stageEl?.clientWidth,
         viewportHeight: stageEl?.clientHeight,
+        scanHint: activeCornerHint,
       });
-      if (!detected) {
+      if (!detailed) {
         stableFramesRef.current = 0;
         lastRawQuadRef.current = null;
         setEdgeLocked(false);
         setLiveQuad(null);
+        if (scanMode === 'auto') setAutoDetectedScene('document');
         return;
       }
 
+      const detected = detailed.quad;
       if (lastRawQuadRef.current && quadsAreClose(lastRawQuadRef.current, detected, 0.02)) {
         stableFramesRef.current += 1;
       } else {
@@ -431,6 +492,15 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       lastRawQuadRef.current = detected;
       setEdgeLocked(stableFramesRef.current >= 2);
       setLiveQuad((prev) => smoothQuadCorners(prev, detected, 0.42));
+      if (scanMode === 'auto') {
+        setAutoDetectedScene(
+          classifyScannedSceneHint({
+            quad: detected,
+            quadConfidence: detailed.confidence,
+            aspectRatio: detailed.aspectRatio,
+          })
+        );
+      }
     };
 
     const timer = window.setInterval(runLiveDetect, 240);
@@ -439,16 +509,117 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       window.clearInterval(timer);
       window.clearTimeout(initial);
     };
-  }, [isOpen, stage, liveEdgeOn, cameraActive, cameraStatus, demoSceneIdx, zoomLevel]);
+  }, [
+    isOpen,
+    stage,
+    scanMode,
+    activeCornerHint,
+    liveEdgeOn,
+    cameraActive,
+    cameraStatus,
+    demoSceneIdx,
+    zoomLevel,
+    qrCompletedPayload,
+    qrPlainText,
+    qrCollector.total,
+  ]);
+
+  const processDecodedQrText = useCallback(
+    async (rawText: string) => {
+      if (!rawText || qrBusyRef.current) return;
+      qrBusyRef.current = true;
+      try {
+        const res = await ingestQrPayload(qrCollectorRef.current, rawText);
+        if (res.kind === 'plain_text') {
+          haptics.tap();
+          setAutoDetectedScene('qr_code');
+          setQrPlainText(res.text);
+          setQrScanNotice('Standard QR code detected');
+        } else if (res.kind === 'progress') {
+          setAutoDetectedScene('qr_transfer');
+          setQrCollector(res.state);
+          qrCollectorRef.current = res.state;
+          setQrPlainText(null);
+          if (res.isNewChunk) {
+            setQrChunkFlash(true);
+            window.setTimeout(() => setQrChunkFlash(false), 120);
+            setQrScanNotice(`Scanning QR stream (${res.receivedCount}/${res.totalCount})`);
+          }
+        } else if (res.kind === 'complete') {
+          setAutoDetectedScene('qr_transfer');
+          setQrCollector(res.state);
+          qrCollectorRef.current = res.state;
+          setQrPlainText(null);
+          setQrCompletedPayload(res.payload);
+          setQrScanNotice('File transfer complete!');
+          haptics.success();
+        } else if (res.kind === 'invalid') {
+          setQrCollector(res.state);
+          qrCollectorRef.current = res.state;
+        }
+      } finally {
+        qrBusyRef.current = false;
+      }
+    },
+    [haptics]
+  );
+
+  // Continuous live QR decoding loop (active in both 'qr' mode and 'auto' mode)
+  useEffect(() => {
+    if (
+      !isOpen ||
+      stage !== 'viewfinder' ||
+      (scanMode !== 'qr' && scanMode !== 'auto') ||
+      !cameraActive ||
+      qrCompletedPayload
+    ) {
+      return;
+    }
+
+    if (!qrScratchCanvasRef.current) {
+      qrScratchCanvasRef.current = document.createElement('canvas');
+    }
+
+    const intervalMs = scanMode === 'qr' ? 75 : 130;
+    const timer = window.setInterval(() => {
+      const videoEl = videoRef.current;
+      const scratch = qrScratchCanvasRef.current;
+      if (!videoEl || !scratch || videoEl.readyState < 2 || qrBusyRef.current) return;
+      const decoded = decodeQrDetailedFromMediaSource(videoEl, scratch);
+      if (!decoded) return;
+      const isBsq = decoded.text.trim().startsWith('BSQ1|');
+      // In Auto mode, require either a BitScan QR Beam prefix OR a prominent QR (>= 3.5% frame area)
+      // so tiny QR footer stamps on printed invoices never hijack document capture.
+      if (scanMode === 'qr' || isBsq || decoded.areaFraction >= 0.035) {
+        void processDecodedQrText(decoded.text);
+      }
+    }, intervalMs);
+
+    return () => window.clearInterval(timer);
+  }, [isOpen, stage, scanMode, cameraActive, qrCompletedPayload, processDecodedQrText]);
 
   if (!isOpen) return null;
 
   const activeDemo = DEMO_SCENES[demoSceneIdx] || DEMO_SCENES[0];
 
-  const handleModeSwitch = (mode: 'docs' | 'id_card' | 'book') => {
+  const handleModeSwitch = (mode: 'auto' | 'docs' | 'id_card' | 'book' | 'qr') => {
     haptics.tap();
     setScanMode(mode);
-    if (mode === 'id_card') {
+    setSplitAutoSpread(false);
+    if (mode === 'qr') {
+      setIsMultiMode(false);
+      setQrCollector(createCollectorState());
+      setQrCompletedPayload(null);
+      setQrPlainText(null);
+      setQrScanNotice('Point camera at QR code stream');
+    } else if (mode === 'auto') {
+      setAutoDetectedScene('document');
+      setQrCollector(createCollectorState());
+      setQrCompletedPayload(null);
+      setQrPlainText(null);
+      setQrScanNotice('');
+      setDemoSceneIdx(0);
+    } else if (mode === 'id_card') {
       setIsMultiMode(false);
       setDemoSceneIdx(2);
     } else if (mode === 'book') {
@@ -524,8 +695,23 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
   const ingestCapturedUrl = async (dataUrl: string, label: string, stayInCameraIfMulti: boolean) => {
     setDetecting(true);
     try {
+      // In Auto mode, check first whether the captured frame is a prominent QR code or QR Beam frame
+      if (scanMode === 'auto' && retakeTargetIdx === null) {
+        if (!qrScratchCanvasRef.current) {
+          qrScratchCanvasRef.current = document.createElement('canvas');
+        }
+        const img = await loadImage(dataUrl).catch(() => null);
+        if (img) {
+          const decoded = decodeQrDetailedFromMediaSource(img, qrScratchCanvasRef.current);
+          if (decoded && (decoded.text.trim().startsWith('BSQ1|') || decoded.areaFraction >= 0.035)) {
+            await processDecodedQrText(decoded.text);
+            return;
+          }
+        }
+      }
+
       const detectedQuad: QuadCorners = autoEdgeDetect
-        ? await detectCornersFromDataUrl(dataUrl)
+        ? await detectCornersFromDataUrl(dataUrl, { scanHint: activeCornerHint })
         : [
             { x: 0.04, y: 0.04 },
             { x: 0.96, y: 0.04 },
@@ -621,10 +807,60 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     if (!files || files.length === 0) return;
     haptics.tap();
     const list = Array.from(files);
+
+    // If in QR File scan mode, decode QR codes from the uploaded image(s) directly
+    if (scanMode === 'qr') {
+      if (!qrScratchCanvasRef.current) {
+        qrScratchCanvasRef.current = document.createElement('canvas');
+      }
+      let decodedAny = false;
+      for (const file of list) {
+        const dataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(String(reader.result || ''));
+          reader.readAsDataURL(file);
+        });
+        if (!dataUrl) continue;
+        const img = await loadImage(dataUrl).catch(() => null);
+        if (!img) continue;
+        const decoded = decodeQrDetailedFromMediaSource(img, qrScratchCanvasRef.current);
+        if (decoded?.text) {
+          decodedAny = true;
+          await processDecodedQrText(decoded.text);
+        }
+      }
+      if (!decodedAny) {
+        setQrScanNotice('No QR code detected in selected image');
+      }
+      return;
+    }
+
     const keepShooting = list.length > 1 ? false : isMultiMode;
 
     setDetecting(true);
     try {
+      // In Auto mode with a single upload, check for prominent QR or BSQ1 payload before cropping as paper
+      if (scanMode === 'auto' && list.length === 1 && retakeTargetIdx === null) {
+        if (!qrScratchCanvasRef.current) {
+          qrScratchCanvasRef.current = document.createElement('canvas');
+        }
+        const singleUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(String(reader.result || ''));
+          reader.readAsDataURL(list[0]);
+        });
+        if (singleUrl) {
+          const img = await loadImage(singleUrl).catch(() => null);
+          if (img) {
+            const decoded = decodeQrDetailedFromMediaSource(img, qrScratchCanvasRef.current);
+            if (decoded && (decoded.text.trim().startsWith('BSQ1|') || decoded.areaFraction >= 0.035)) {
+              await processDecodedQrText(decoded.text);
+              return;
+            }
+          }
+        }
+      }
+
       const added: QueuedCapture[] = [];
       for (const file of list) {
         const dataUrl = await new Promise<string>((resolve) => {
@@ -634,7 +870,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         });
         if (!dataUrl) continue;
         const quad: QuadCorners = autoEdgeDetect
-          ? await detectCornersFromDataUrl(dataUrl)
+          ? await detectCornersFromDataUrl(dataUrl, { scanHint: activeCornerHint })
           : [
               { x: 0.04, y: 0.04 },
               { x: 0.96, y: 0.04 },
@@ -698,7 +934,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     haptics.tap();
     setDetecting(true);
     try {
-      const nextQuad = await detectCornersFromDataUrl(activeItem.originalDataUrl);
+      const nextQuad = await detectCornersFromDataUrl(activeItem.originalDataUrl, {
+        scanHint: activeCornerHint,
+      });
       const next = queueRef.current.map((item, i) =>
         i === selectedQueueIdx ? { ...item, quad: nextQuad } : item
       );
@@ -721,7 +959,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     ctx.rotate(Math.PI / 2);
     ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
     const rotatedUrl = c.toDataURL('image/jpeg', 0.92);
-    const nextQuad = await detectCornersFromDataUrl(rotatedUrl);
+    const nextQuad = await detectCornersFromDataUrl(rotatedUrl, { scanHint: activeCornerHint });
     const next = queueRef.current.map((item, i) =>
       i === selectedQueueIdx ? { ...item, originalDataUrl: rotatedUrl, quad: nextQuad } : item
     );
@@ -749,11 +987,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       for (const item of queue) {
         const dewarped = await perspectiveDewarp(item.originalDataUrl, item.quad, 1450);
 
-        // Book mode splits wide spread down the middle into Left & Right pages
-        const pageSources =
-          scanMode === 'book' && dewarped.width > dewarped.height * 1.12
-            ? await splitHorizontalSpread(dewarped.dataUrl)
-            : [dewarped.dataUrl];
+        // Book mode (or Auto with user book-spread split toggle enabled) splits wide spread into Left & Right pages
+        const shouldSplitBook =
+          (scanMode === 'book' || (scanMode === 'auto' && splitAutoSpread)) &&
+          dewarped.width > dewarped.height * 1.12;
+        const pageSources = shouldSplitBook
+          ? await splitHorizontalSpread(dewarped.dataUrl)
+          : [dewarped.dataUrl];
 
         for (const srcUrl of pageSources) {
           const processed = await processPagePipeline(
@@ -836,21 +1076,39 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               </button>
 
               <span
-                className={`${
-                  retakeTargetIdx !== null ? 'inline-block' : 'hidden sm:inline-block'
-                } rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white/90`}
+                data-testid="camera-mode-status-pill"
+                className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-medium text-white/90 whitespace-nowrap"
               >
-                {retakeTargetIdx !== null
-                  ? `Retaking Page ${retakeTargetIdx + 1}`
-                  : scanMode === 'id_card'
-                    ? queue.length === 0
-                      ? 'ID Card · Frame Front'
-                      : 'ID Card · Frame Back'
-                    : scanMode === 'book'
-                      ? 'Book Spread · Auto-Split'
-                      : isMultiMode
-                        ? 'Batch Multi-Page'
-                        : 'Smart Document Auto-Crop'}
+                {scanMode === 'auto' && retakeTargetIdx === null && (
+                  <Sparkles className="h-3 w-3 text-teal-300" aria-hidden="true" />
+                )}
+                <span>
+                  {retakeTargetIdx !== null
+                    ? `Retaking Page ${retakeTargetIdx + 1}`
+                    : scanMode === 'auto'
+                      ? autoDetectedScene === 'qr_transfer'
+                        ? 'Auto · QR File Beam'
+                        : autoDetectedScene === 'qr_code'
+                          ? 'Auto · QR Code'
+                          : autoDetectedScene === 'book_spread'
+                            ? 'Auto · Book Spread'
+                            : autoDetectedScene === 'id_card'
+                              ? 'Auto · ID Card'
+                              : isMultiMode
+                                ? 'Auto · Batch'
+                                : 'Auto · Doc & QR'
+                      : scanMode === 'id_card'
+                        ? queue.length === 0
+                          ? 'ID Card · Front'
+                          : 'ID Card · Back'
+                        : scanMode === 'book'
+                          ? 'Book Spread · Split'
+                          : scanMode === 'qr'
+                            ? 'QR File Receiver'
+                            : isMultiMode
+                              ? 'Batch Multi-Page'
+                              : 'Document Auto-Crop'}
+                </span>
               </span>
             </div>
 
@@ -1139,8 +1397,260 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 </div>
               )}
 
+              {/* Continuous QR Scanner Targeting Reticle + Live Chunk Matrix */}
+              {scanMode === 'qr' && (
+                <div
+                  data-testid="qr-scanner-overlay"
+                  className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center p-6"
+                >
+                  <div
+                    className={`relative h-56 w-56 sm:h-64 sm:w-64 rounded-3xl border-2 transition-colors duration-150 ${
+                      qrCompletedPayload
+                        ? 'border-emerald-400 bg-emerald-500/10'
+                        : qrChunkFlash
+                          ? 'border-emerald-300 bg-teal-400/15'
+                          : 'border-teal-400/90 bg-black/15'
+                    }`}
+                  >
+                    <span className="absolute -top-1 -left-1 h-6 w-6 rounded-tl-2xl border-t-4 border-l-4 border-teal-400" />
+                    <span className="absolute -top-1 -right-1 h-6 w-6 rounded-tr-2xl border-t-4 border-r-4 border-teal-400" />
+                    <span className="absolute -bottom-1 -left-1 h-6 w-6 rounded-bl-2xl border-b-4 border-l-4 border-teal-400" />
+                    <span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-br-2xl border-b-4 border-r-4 border-teal-400" />
+
+                    <div className="flex h-full flex-col items-center justify-end pb-3 px-3 text-center">
+                      <span className="rounded-full bg-black/75 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-xs">
+                        {qrScanNotice || 'Point at sender QR code stream'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Continuous Multi-Frame Stream Progress */}
+                  {(scanMode === 'qr' || scanMode === 'auto') && qrCollector.total > 0 && !qrCompletedPayload && (
+                    <div
+                      data-testid="qr-scanner-progress"
+                      className="pointer-events-auto mt-4 w-full max-w-xs rounded-2xl border border-white/15 bg-black/80 p-3 text-white backdrop-blur-md"
+                    >
+                      <div className="flex items-center justify-between text-xs font-semibold">
+                        <span>
+                          Chunks {qrCollector.receivedCount} / {qrCollector.total}
+                        </span>
+                        <span className="font-mono-tabular text-teal-300">
+                          {Math.round((qrCollector.receivedCount / qrCollector.total) * 100)}%
+                        </span>
+                      </div>
+                      <div className="mt-2 grid grid-cols-10 gap-1">
+                        {summarizeCollectorProgress(qrCollector, 40).map((status, idx) => (
+                          <span
+                            key={idx}
+                            className={`h-1.5 rounded-full ${
+                              status === 'done'
+                                ? 'bg-emerald-400'
+                                : status === 'partial'
+                                  ? 'bg-teal-400/70'
+                                  : 'bg-white/20'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Auto-Mode Live QR Progress Toast (when receiving chunks without QR reticle) */}
+              {scanMode === 'auto' && qrCollector.total > 0 && !qrCompletedPayload && (
+                <div
+                  data-testid="qr-scanner-progress"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-xs rounded-2xl border border-white/15 bg-black/85 p-3 text-white shadow-2xl backdrop-blur-md"
+                >
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span>
+                      QR Stream · {qrCollector.receivedCount}/{qrCollector.total}
+                    </span>
+                    <span className="font-mono-tabular text-teal-300">
+                      {Math.round((qrCollector.receivedCount / qrCollector.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-10 gap-1">
+                    {summarizeCollectorProgress(qrCollector, 40).map((status, idx) => (
+                      <span
+                        key={idx}
+                        className={`h-1.5 rounded-full ${
+                          status === 'done'
+                            ? 'bg-emerald-400'
+                            : status === 'partial'
+                              ? 'bg-teal-400/70'
+                              : 'bg-white/20'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* QR Transfer Complete Sheet (works in both QR & Auto modes) */}
+              {(scanMode === 'qr' || scanMode === 'auto') && qrCompletedPayload && (
+                <div
+                  data-testid="qr-completed-card"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl animate-sheet-up"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                        <span>Received via QR Beam</span>
+                      </div>
+                      <h3 className="mt-0.5 truncate text-sm font-bold text-slate-900">
+                        {qrCompletedPayload.title}
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        {qrCompletedPayload.filename} · {formatByteSize(qrCompletedPayload.byteLength)}
+                        {qrCompletedPayload.pages ? ` · ${qrCompletedPayload.pages.length} page(s)` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQrCompletedPayload(null);
+                        setQrCollector(createCollectorState());
+                        setQrScanNotice('Point camera at QR code stream');
+                      }}
+                      aria-label="Scan another QR file"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {onQrFileReceived && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          haptics.success();
+                          onQrFileReceived(qrCompletedPayload, 'save_to_library');
+                          onClose();
+                        }}
+                        data-testid="qr-save-to-library-btn"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                      >
+                        <FolderPlus className="h-4 w-4" aria-hidden="true" />
+                        <span>Save to Library</span>
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptics.tap();
+                        let blob: Blob;
+                        if (qrCompletedPayload.fileBytes) {
+                          const copy = new Uint8Array(qrCompletedPayload.fileBytes.byteLength);
+                          copy.set(qrCompletedPayload.fileBytes);
+                          blob = new Blob([copy.buffer], { type: qrCompletedPayload.mime });
+                        } else if (qrCompletedPayload.text !== undefined) {
+                          blob = new Blob([qrCompletedPayload.text], { type: 'text/plain;charset=utf-8' });
+                        } else if (qrCompletedPayload.pages?.[0]) {
+                          const rawB64 = qrCompletedPayload.pages[0].dataB64
+                            .replace(/-/g, '+')
+                            .replace(/_/g, '/');
+                          const bin = atob(rawB64);
+                          const bytes = new Uint8Array(bin.length);
+                          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                          blob = new Blob([bytes.buffer], { type: qrCompletedPayload.pages[0].mime });
+                        } else {
+                          blob = new Blob([JSON.stringify(qrCompletedPayload)], { type: 'application/json' });
+                        }
+                        const dlUrl = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = dlUrl;
+                        a.download = qrCompletedPayload.filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.setTimeout(() => URL.revokeObjectURL(dlUrl), 1000);
+                      }}
+                      data-testid="qr-download-received-btn"
+                      className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                    >
+                      <Download className="h-4 w-4" aria-hidden="true" />
+                      <span>Download File</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Standard Single Plain-Text / URL QR Result Card (works in both QR & Auto modes) */}
+              {(scanMode === 'qr' || scanMode === 'auto') && qrPlainText && !qrCompletedPayload && (
+                <div
+                  data-testid="qr-plain-text-card"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl animate-sheet-up"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-teal-700">
+                        QR Code Detected
+                      </div>
+                      <p className="mt-1 break-all text-xs font-medium text-slate-800 line-clamp-3">
+                        {qrPlainText}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setQrPlainText(null)}
+                      aria-label="Dismiss scanned QR text"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await navigator.clipboard?.writeText(qrPlainText).catch(() => {});
+                        setQrCopied(true);
+                        window.setTimeout(() => setQrCopied(false), 1500);
+                      }}
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                    >
+                      {qrCopied ? <Check className="h-3.5 w-3.5 text-teal-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      <span>{qrCopied ? 'Copied' : 'Copy'}</span>
+                    </button>
+
+                    {onQrFileReceived && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onQrFileReceived(
+                            {
+                              v: 1,
+                              kind: 'text',
+                              title: 'QR Note',
+                              filename: 'qr-note.txt',
+                              mime: 'text/plain',
+                              byteLength: new TextEncoder().encode(qrPlainText).byteLength,
+                              text: qrPlainText,
+                            },
+                            'save_note'
+                          );
+                          onClose();
+                        }}
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                      >
+                        <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Save as Note Doc</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Real-time Auto-Edge Tracking Polygon + Corner Lock Anchors */}
-              {liveEdgeOn && liveQuad && livePolygonPts && scanMode !== 'id_card' && (
+              {liveEdgeOn && liveQuad && livePolygonPts && scanMode !== 'id_card' && scanMode !== 'qr' && (
                 <>
                   <svg
                     viewBox="0 0 100 100"
@@ -1205,11 +1715,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
           {/* Bottom Android Camera Controls: Mode Carousel + Upload / Shutter / Multi-Toggle & Stack */}
           <footer className="relative z-20 shrink-0 bg-gradient-to-t from-black via-black/95 to-black/80 pt-2.5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            {/* Scan Mode Switcher (Docs / ID Card / Book / Batch) */}
+            {/* Scan Mode Switcher (Auto / Docs / ID Card / Book / QR File) */}
             <div
               role="tablist"
               aria-label="Scan mode"
-              className="mx-auto mb-3 flex max-w-md items-center justify-center gap-1.5 overflow-x-auto px-3"
+              className="mx-auto mb-3 flex max-w-lg items-center justify-center gap-1 sm:gap-1.5 overflow-x-auto px-2.5"
             >
               {MODE_ITEMS.map((m) => {
                 const Icon = m.icon;
@@ -1221,94 +1731,127 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     role="tab"
                     aria-selected={active}
                     onClick={() => handleModeSwitch(m.id)}
-                    className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
+                    className={`inline-flex min-h-[36px] items-center gap-1 rounded-full px-2.5 sm:px-3.5 text-[11px] sm:text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer active:scale-95 ${
                       active
                         ? 'bg-teal-500 text-slate-950 shadow-sm'
                         : 'bg-white/10 text-white/80 hover:bg-white/20'
                     }`}
                   >
-                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     <span>{m.label}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Bottom 3-Slot Action Row: Gallery Upload | Center Shutter | Single/Multi + Done Stack */}
-            <div className="mx-auto flex max-w-lg items-center justify-between px-5">
-              {/* Left: Gallery / Picture Upload */}
-              <label className="flex min-w-[72px] flex-col items-center gap-1 cursor-pointer active:scale-95 transition-transform">
-                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/25 bg-white/10 hover:bg-white/20">
-                  {queue.length > 0 ? (
-                    <img
-                      src={queue[queue.length - 1].originalDataUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <ImagePlus className="h-5 w-5 text-white" aria-hidden="true" />
-                  )}
-                </span>
-                <span className="text-[11px] font-medium text-white/85">Upload</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  aria-label="Upload photos from device"
-                  onChange={(e) => handleGalleryUpload(e.target.files)}
-                  className="sr-only"
-                />
-              </label>
+            {scanMode === 'qr' ? (
+              /* QR Mode Footer: Upload QR Image(s) | Live Scan Indicator | Reset Collector */
+              <div className="mx-auto flex max-w-lg items-center justify-between px-5">
+                <label className="inline-flex min-h-[46px] items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 text-xs font-semibold text-white hover:bg-white/15 cursor-pointer active:scale-95">
+                  <ImagePlus className="h-4 w-4 text-teal-300" aria-hidden="true" />
+                  <span>Upload QR Image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    aria-label="Upload QR code images"
+                    onChange={(e) => handleGalleryUpload(e.target.files)}
+                    className="sr-only"
+                  />
+                </label>
 
-              {/* Center: Android Shutter Trigger */}
-              <button
-                type="button"
-                disabled={detecting}
-                onClick={handleShutterPress}
-                aria-label="Capture photo"
-                data-testid="camera-shutter-button"
-                className="relative flex h-[76px] w-[76px] items-center justify-center rounded-full border-4 border-white/90 bg-white/15 active:scale-92 transition-transform disabled:opacity-60 cursor-pointer"
-              >
-                <span className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white text-slate-950 shadow-lg">
-                  <Camera className="h-6 w-6 text-teal-700" aria-hidden="true" />
-                </span>
-              </button>
-
-              {/* Right: Multi-Page Toggle OR Done(N) Stack */}
-              <div className="flex min-w-[84px] flex-col items-end gap-1.5">
-                {queue.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptics.tap();
-                      setStage('crop_review');
-                    }}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-2xl bg-teal-500 px-3.5 text-xs font-bold text-slate-950 shadow-lg active:scale-95 cursor-pointer"
-                  >
-                    <Check className="h-4 w-4" aria-hidden="true" />
-                    <span>Done ({queue.length})</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      haptics.tap();
-                      setIsMultiMode((m) => !m);
-                    }}
-                    aria-pressed={isMultiMode}
-                    aria-label="Toggle multiple page mode"
-                    className={`flex min-h-[44px] items-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold active:scale-95 transition-colors cursor-pointer ${
-                      isMultiMode
-                        ? 'border-teal-400 bg-teal-500/20 text-teal-300'
-                        : 'border-white/20 bg-white/10 text-white/80'
-                    }`}
-                  >
-                    <Layers className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{isMultiMode ? 'Multi' : 'Single'}</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.tap();
+                    setQrCollector(createCollectorState());
+                    setQrCompletedPayload(null);
+                    setQrPlainText(null);
+                    setQrScanNotice('Point camera at QR code stream');
+                  }}
+                  className="inline-flex min-h-[46px] items-center gap-1.5 rounded-2xl border border-white/20 bg-white/10 px-4 text-xs font-semibold text-white/85 hover:bg-white/15 cursor-pointer active:scale-95"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                  <span>Reset</span>
+                </button>
               </div>
-            </div>
+            ) : (
+              /* Bottom 3-Slot Action Row: Gallery Upload | Center Shutter | Single/Multi + Done Stack */
+              <div className="mx-auto flex max-w-lg items-center justify-between px-5">
+                {/* Left: Gallery / Picture Upload */}
+                <label className="flex min-w-[72px] flex-col items-center gap-1 cursor-pointer active:scale-95 transition-transform">
+                  <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/25 bg-white/10 hover:bg-white/20">
+                    {queue.length > 0 ? (
+                      <img
+                        src={queue[queue.length - 1].originalDataUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImagePlus className="h-5 w-5 text-white" aria-hidden="true" />
+                    )}
+                  </span>
+                  <span className="text-[11px] font-medium text-white/85">Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    aria-label="Upload photos from device"
+                    onChange={(e) => handleGalleryUpload(e.target.files)}
+                    className="sr-only"
+                  />
+                </label>
+
+                {/* Center: Android Shutter Trigger */}
+                <button
+                  type="button"
+                  disabled={detecting}
+                  onClick={handleShutterPress}
+                  aria-label="Capture photo"
+                  data-testid="camera-shutter-button"
+                  className="relative flex h-[76px] w-[76px] items-center justify-center rounded-full border-4 border-white/90 bg-white/15 active:scale-92 transition-transform disabled:opacity-60 cursor-pointer"
+                >
+                  <span className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white text-slate-950 shadow-lg">
+                    <Camera className="h-6 w-6 text-teal-700" aria-hidden="true" />
+                  </span>
+                </button>
+
+                {/* Right: Multi-Page Toggle OR Done(N) Stack */}
+                <div className="flex min-w-[84px] flex-col items-end gap-1.5">
+                  {queue.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptics.tap();
+                        setStage('crop_review');
+                      }}
+                      className="inline-flex min-h-[44px] items-center gap-1.5 rounded-2xl bg-teal-500 px-3.5 text-xs font-bold text-slate-950 shadow-lg active:scale-95 cursor-pointer"
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                      <span>Done ({queue.length})</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        haptics.tap();
+                        setIsMultiMode((m) => !m);
+                      }}
+                      aria-pressed={isMultiMode}
+                      aria-label="Toggle multiple page mode"
+                      className={`flex min-h-[44px] items-center gap-1.5 rounded-2xl border px-3 text-xs font-semibold active:scale-95 transition-colors cursor-pointer ${
+                        isMultiMode
+                          ? 'border-teal-400 bg-teal-500/20 text-teal-300'
+                          : 'border-white/20 bg-white/10 text-white/80'
+                      }`}
+                    >
+                      <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{isMultiMode ? 'Multi' : 'Single'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </footer>
         </>
       ) : (
@@ -1503,6 +2046,30 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   <span>Delete</span>
                 </button>
               </div>
+
+              {scanMode === 'auto' && activeItem && Math.hypot(activeItem.quad[1].x - activeItem.quad[0].x, activeItem.quad[1].y - activeItem.quad[0].y) > Math.hypot(activeItem.quad[3].x - activeItem.quad[0].x, activeItem.quad[3].y - activeItem.quad[0].y) * 1.24 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.tap();
+                    setSplitAutoSpread((v) => !v);
+                  }}
+                  aria-pressed={splitAutoSpread}
+                  className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${
+                    splitAutoSpread
+                      ? 'border-teal-500 bg-teal-50 text-teal-800'
+                      : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <BookOpen className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                    <span>Wide 2-page spread detected — split down spine</span>
+                  </span>
+                  <span className="font-mono-tabular text-[11px] font-bold">
+                    {splitAutoSpread ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+              )}
 
               {/* Prominent Primary CTA with comfortable breathing room */}
               <button

@@ -183,7 +183,7 @@ export function quadArea(quad: QuadCorners): number {
  */
 export function isValidDocumentQuad(quad: QuadCorners): boolean {
   const area = quadArea(quad);
-  if (area < 0.05 || area > 0.995) return false;
+  if (area < 0.032 || area > 0.995) return false;
 
   // Cross-product sign consistency check for convexity
   let sign = 0;
@@ -484,6 +484,52 @@ function morphClose3x3(src: Uint8Array, width: number, height: number): Uint8Arr
 }
 
 /**
+ * Topological hole fill: any background (0) pixel that cannot reach the 1px image border
+ * is completely enclosed inside a foreground object (e.g. dark ID portrait photo, header strip,
+ * barcode, or dark illustration on a colorful book cover) and is flipped to 1.
+ * Leaves outer perimeters untouched to preserve exact corners.
+ */
+function fillEnclosedHoles(mask: Uint8Array, width: number, height: number): Uint8Array {
+  const total = width * height;
+  const exterior = new Uint8Array(total);
+  const q = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  const enqueue = (idx: number) => {
+    if (mask[idx] === 0 && exterior[idx] === 0) {
+      exterior[idx] = 1;
+      q[tail++] = idx;
+    }
+  };
+
+  for (let x = 0; x < width; x++) {
+    enqueue(x);
+    enqueue((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    enqueue(y * width);
+    enqueue(y * width + (width - 1));
+  }
+
+  while (head < tail) {
+    const idx = q[head++];
+    const px = idx % width;
+    const py = (idx - px) / width;
+    if (px > 0) enqueue(idx - 1);
+    if (px < width - 1) enqueue(idx + 1);
+    if (py > 0) enqueue(idx - width);
+    if (py < height - 1) enqueue(idx + width);
+  }
+
+  const out = new Uint8Array(total);
+  for (let i = 0; i < total; i++) {
+    out[i] = exterior[i] ? 0 : 1;
+  }
+  return out;
+}
+
+/**
  * Shared connected-component + morphological hole-fill + convex-hull 4-corner extractor
  * from a foreground binary mask `fg`.
  */
@@ -493,7 +539,8 @@ function extractQuadsFromMask(
   height: number
 ): QuadCorners[] {
   const total = width * height;
-  const filled = morphClose3x3(fg, width, height);
+  const closed = morphClose3x3(fg, width, height);
+  const filled = fillEnclosedHoles(closed, width, height);
 
   // Connected component labeling (BFS) biased toward the central document sheet
   const labels = new Int32Array(total);
@@ -554,12 +601,12 @@ function extractQuadsFromMask(
       }
 
       const areaFrac = compIndices.length / total;
-      if (areaFrac < 0.06 || areaFrac > 0.96) continue;
+      if (areaFrac < 0.035 || areaFrac > 0.96) continue;
 
       const meanX = sumX / compIndices.length;
       const meanY = sumY / compIndices.length;
       const distCenter = Math.hypot((meanX - cx) / width, (meanY - cy) / height);
-      const borderPenalty = borderTouches > compIndices.length * 0.03 ? 0.52 : 1.0;
+      const borderPenalty = borderTouches > compIndices.length * 0.035 ? 0.52 : 1.0;
       const score = (areaFrac * borderPenalty) / (0.16 + distCenter);
 
       if (score > bestCompScore) {
@@ -615,6 +662,7 @@ interface EdgeFeatureBuffers {
   grad: Float32Array;
   meanGrad: number;
   baseGrad: number;
+  bgPalette?: Array<[number, number, number]>;
 }
 
 /**
@@ -653,6 +701,28 @@ function sampleColorDist(
   const i1 = iy1 * width + ix1;
   const i2 = iy2 * width + ix2;
   return Math.hypot(sr[i1] - sr[i2], sg[i1] - sg[i2], sb[i1] - sb[i2]);
+}
+
+function minPaletteDistAt(
+  buf: EdgeFeatureBuffers,
+  x: number,
+  y: number,
+  palette: Array<[number, number, number]>
+): number {
+  const { width, height, sr, sg, sb } = buf;
+  const ix = clamp(Math.round(x), 0, width - 1);
+  const iy = clamp(Math.round(y), 0, height - 1);
+  const idx = iy * width + ix;
+  const r = sr[idx];
+  const g = sg[idx];
+  const b = sb[idx];
+  let best = Infinity;
+  for (let k = 0; k < palette.length; k++) {
+    const p = palette[k];
+    const d = Math.hypot(r - p[0], g - p[1], b - p[2]);
+    if (d < best) best = d;
+  }
+  return best;
 }
 
 /**
@@ -981,6 +1051,10 @@ function scoreQuadCandidate(
   let totalEdgeEnergy = 0;
   let totalContrast = 0;
   let strongStations = 0;
+  let outsideNoiseSum = 0;
+  let outsideBgHits = 0;
+  let nonBorderStations = 0;
+  const palette = buf.bgPalette;
   const samplesPerEdge = 18;
   const totalStations = samplesPerEdge * 4;
   let sideMinContrast = Infinity;
@@ -1034,6 +1108,26 @@ function scoreQuadCandidate(
         const cMid = sampleColorDist(buf, px - nx * 4, py - ny * 4, px + nx * 4, py + ny * 4);
         const cWide = sampleColorDist(buf, px - nx * 8, py - ny * 8, px + nx * 8, py + ny * 8);
         contrast = Math.min(cMid, cWide);
+
+        // True outer perimeter sits beside quiet background; inner text boxes sit beside noisy print
+        const outStability = sampleColorDist(
+          buf,
+          px + nx * 4,
+          py + ny * 4,
+          px + nx * 11,
+          py + ny * 11
+        );
+        outsideNoiseSum += outStability;
+
+        // Check whether outside strip actually belongs to outer desk/border palette (prevents clipping book art bands)
+        if (palette && palette.length > 0) {
+          const dOutNear = minPaletteDistAt(buf, px + nx * 6, py + ny * 6, palette);
+          const dOutFar = minPaletteDistAt(buf, px + nx * 11, py + ny * 11, palette);
+          if (Math.min(dOutNear, dOutFar) <= 52) {
+            outsideBgHits++;
+          }
+        }
+        nonBorderStations++;
       }
       totalEdgeEnergy += contrast >= 10 ? peakG : peakG * 0.2;
       totalContrast += contrast;
@@ -1050,8 +1144,21 @@ function scoreQuadCandidate(
   const edgeSupport = strongStations / totalStations;
   const avgEnergy = totalEdgeEnergy / totalStations;
   const avgContrast = totalContrast / totalStations;
+  const avgOutNoise = nonBorderStations > 0 ? outsideNoiseSum / nonBorderStations : 0;
+  const outsideQuietBonus = clamp(1.12 - avgOutNoise / 90, 0.72, 1.12);
+  const bgConsistencyFactor =
+    palette && palette.length > 0 && palette.length <= 5 && nonBorderStations >= 8
+      ? clamp(0.42 + 0.68 * (outsideBgHits / nonBorderStations), 0.42, 1.1)
+      : 1.0;
   const area = quadArea(quad);
-  const areaScore = area >= 0.1 && area <= 0.9 ? 1.0 : area < 0.1 ? 0.65 : 0.8;
+  const areaScore =
+    area >= 0.14 && area <= 0.88
+      ? 1.0 + area * 0.12
+      : area >= 0.05 && area < 0.14
+        ? 0.82
+        : area < 0.05
+          ? 0.68
+          : 0.84;
   const distCenter = Math.hypot(centerX / width - 0.5, centerY / height - 0.5);
   const centerBonus = 1 / (0.85 + distCenter);
   const fourSideBalance =
@@ -1079,6 +1186,8 @@ function scoreQuadCandidate(
     (0.35 + 0.65 * edgeSupport) *
     areaScore *
     centerBonus *
+    outsideQuietBonus *
+    bgConsistencyFactor *
     fourSideBalance *
     borderPenalty *
     perspectiveFactor;
@@ -1120,10 +1229,26 @@ export function quadsAreClose(a: QuadCorners, b: QuadCorners, maxDelta = 0.018):
   return true;
 }
 
+export type ScanCornerHint = 'auto' | 'docs' | 'id_card' | 'book';
+
+export function expandQuadMargin(quad: QuadCorners, fraction: number): QuadCorners {
+  if (fraction <= 0) return quad;
+  const cx = (quad[0].x + quad[1].x + quad[2].x + quad[3].x) * 0.25;
+  const cy = (quad[0].y + quad[1].y + quad[2].y + quad[3].y) * 0.25;
+  const factor = 1 + fraction;
+  return [
+    { x: clamp(cx + (quad[0].x - cx) * factor, 0.006, 0.994), y: clamp(cy + (quad[0].y - cy) * factor, 0.006, 0.994) },
+    { x: clamp(cx + (quad[1].x - cx) * factor, 0.006, 0.994), y: clamp(cy + (quad[1].y - cy) * factor, 0.006, 0.994) },
+    { x: clamp(cx + (quad[2].x - cx) * factor, 0.006, 0.994), y: clamp(cy + (quad[2].y - cy) * factor, 0.006, 0.994) },
+    { x: clamp(cx + (quad[3].x - cx) * factor, 0.006, 0.994), y: clamp(cy + (quad[3].y - cy) * factor, 0.006, 0.994) },
+  ];
+}
+
 function selectBestQuadCandidate(
   candidates: QuadCorners[],
   buf: EdgeFeatureBuffers,
-  fallbackQuad: QuadCorners
+  fallbackQuad: QuadCorners,
+  scanHint: ScanCornerHint = 'docs'
 ): DetectedQuadResult {
   const expanded: QuadCorners[] = [];
   for (const c of candidates) {
@@ -1148,6 +1273,15 @@ function selectBestQuadCandidate(
   if (bestScore < 8 && bestSupport < 0.22) {
     return { quad: fallbackQuad, confidence: 0.1, edgeSupport: bestSupport };
   }
+
+  // Soft outer bevel relief for ID cards so rounded borders and corner numbers are never hard-clipped
+  if (scanHint === 'id_card') {
+    const softened = expandQuadMargin(bestQuad, 0.018);
+    if (isValidDocumentQuad(softened) && hasReasonableQuadAngles(softened)) {
+      bestQuad = softened;
+    }
+  }
+
   const confidence = clamp(bestSupport * 0.7 + clamp(bestScore / 90, 0, 0.3), 0, 1);
   return { quad: bestQuad, confidence, edgeSupport: bestSupport };
 }
@@ -1320,13 +1454,155 @@ export function detectDocumentQuadFromLuma(
 }
 
 /**
- * Multi-channel RGB color + luma + radial-edge + straight-line IRLS auto-crop detector!
- * Handles colored ID cards, cream receipts, white-on-offwhite, shadows, and textured desks.
+ * Builds up to 6 diverse RGB palette centroids along the outer 4% border strip so foreground
+ * detection works independently of how many vibrant/dark colors appear on a book cover or ID card.
+ */
+function buildBorderBackgroundPalette(buf: EdgeFeatureBuffers): Array<[number, number, number]> {
+  const { width, height, sr, sg, sb } = buf;
+  const samples: Array<[number, number, number]> = [];
+  const stepX = Math.max(2, Math.floor(width / 24));
+  const stepY = Math.max(2, Math.floor(height / 24));
+  const insetX = Math.max(2, Math.floor(width * 0.025));
+  const insetY = Math.max(2, Math.floor(height * 0.025));
+
+  for (let x = 0; x < width; x += stepX) {
+    const iTop = insetY * width + x;
+    const iBot = (height - 1 - insetY) * width + x;
+    samples.push([sr[iTop], sg[iTop], sb[iTop]]);
+    samples.push([sr[iBot], sg[iBot], sb[iBot]]);
+  }
+  for (let y = 0; y < height; y += stepY) {
+    const iLeft = y * width + insetX;
+    const iRight = y * width + (width - 1 - insetX);
+    samples.push([sr[iLeft], sg[iLeft], sb[iLeft]]);
+    samples.push([sr[iRight], sg[iRight], sb[iRight]]);
+  }
+
+  const palette: Array<[number, number, number]> = [];
+  for (const s of samples) {
+    const close = palette.some(
+      (p) => Math.hypot(s[0] - p[0], s[1] - p[1], s[2] - p[2]) < 22
+    );
+    if (!close) {
+      palette.push(s);
+      if (palette.length >= 6) break;
+    }
+  }
+  return palette;
+}
+
+/**
+ * Background-palette foreground masks + exterior multi-source flood fill.
+ * Because background pixels around the perimeter stop cleanly at the outer edge gradient
+ * of ANY book cover or ID card (regardless of multi-colored illustrations, photos, or text),
+ * interior colors never split the detected page/card.
+ */
+function detectByBorderBackgroundModels(buf: EdgeFeatureBuffers): QuadCorners[] {
+  const { width, height, sr, sg, sb, grad, baseGrad } = buf;
+  const total = width * height;
+  const palette = buf.bgPalette ?? buildBorderBackgroundPalette(buf);
+  if (palette.length === 0) return [];
+
+  const out: QuadCorners[] = [];
+
+  // Model 1: Color difference from border desk palette (multi-tolerance for glossy & colorful covers)
+  for (const bgThresh of [22, 34, 48]) {
+    const fg = new Uint8Array(total);
+    for (let y = 1; y < height - 1; y++) {
+      for (let x = 1; x < width - 1; x++) {
+        const idx = y * width + x;
+        const r = sr[idx];
+        const g = sg[idx];
+        const b = sb[idx];
+        let minD = Infinity;
+        for (let k = 0; k < palette.length; k++) {
+          const p = palette[k];
+          const d = Math.hypot(r - p[0], g - p[1], b - p[2]);
+          if (d < minD) minD = d;
+        }
+        if (minD > bgThresh) {
+          fg[idx] = 1;
+        }
+      }
+    }
+    out.push(...extractQuadsFromMask(fg, width, height));
+  }
+
+  // Model 2: Exterior inward flood-fill starting from outer 1px border, gated by gradient walls
+  const gradWall = Math.max(24, baseGrad * 2.15);
+  const bgVisited = new Uint8Array(total);
+  const queue = new Int32Array(total);
+  let head = 0;
+  let tail = 0;
+
+  const isBgLike = (idx: number): boolean => {
+    const r = sr[idx];
+    const g = sg[idx];
+    const b = sb[idx];
+    for (let k = 0; k < palette.length; k++) {
+      const p = palette[k];
+      if (Math.hypot(r - p[0], g - p[1], b - p[2]) <= 46) return true;
+    }
+    return false;
+  };
+
+  const seed = (idx: number) => {
+    if (!bgVisited[idx] && isBgLike(idx) && grad[idx] < gradWall) {
+      bgVisited[idx] = 1;
+      queue[tail++] = idx;
+    }
+  };
+
+  for (let x = 0; x < width; x++) {
+    seed(x);
+    seed((height - 1) * width + x);
+  }
+  for (let y = 1; y < height - 1; y++) {
+    seed(y * width);
+    seed(y * width + (width - 1));
+  }
+
+  while (head < tail) {
+    const idx = queue[head++];
+    const px = idx % width;
+    const py = (idx - px) / width;
+    const neighbors = [
+      px > 0 ? idx - 1 : -1,
+      px < width - 1 ? idx + 1 : -1,
+      py > 0 ? idx - width : -1,
+      py < height - 1 ? idx + width : -1,
+    ];
+    for (const nIdx of neighbors) {
+      if (nIdx < 0 || bgVisited[nIdx]) continue;
+      if (grad[nIdx] >= gradWall) continue;
+      const dStep = Math.hypot(sr[nIdx] - sr[idx], sg[nIdx] - sg[idx], sb[nIdx] - sb[idx]);
+      if (dStep > 16 || !isBgLike(nIdx)) continue;
+      bgVisited[nIdx] = 1;
+      queue[tail++] = nIdx;
+    }
+  }
+
+  const fgCount = total - tail;
+  if (fgCount > total * 0.035 && fgCount < total * 0.94) {
+    const fgFlood = new Uint8Array(total);
+    for (let i = 0; i < total; i++) {
+      fgFlood[i] = bgVisited[i] ? 0 : 1;
+    }
+    out.push(...extractQuadsFromMask(fgFlood, width, height));
+  }
+
+  return out;
+}
+
+/**
+ * Multi-channel RGB color + luma + border-palette + radial-edge + straight-line IRLS auto-crop detector!
+ * Handles white documents, colored ID cards, multi-colored book covers, white-on-offwhite, shadows, and textured desks.
  */
 export function detectDocumentQuadDetailed(
   rgba: Uint8ClampedArray,
   width: number,
-  height: number
+  height: number,
+  options?: { scanHint?: ScanCornerHint }
 ): DetectedQuadResult {
   const defaultQuad: QuadCorners = [
     { x: 0.06, y: 0.06 },
@@ -1457,6 +1733,7 @@ export function detectDocumentQuadDetailed(
     meanGrad: sumGrad / Math.max(1, total),
     baseGrad: computePercentileGrad(colorGrad, 0.65),
   };
+  buf.bgPalette = buildBorderBackgroundPalette(buf);
 
   // Sample central sheet RGB vs outer 5% desk border RGB
   let cR = 0,
@@ -1522,6 +1799,9 @@ export function detectDocumentQuadDetailed(
   // Hypothesis A2: Seeded central region grow (immune to sunlit outer glare / window corners)
   candidates.push(...detectCentralRegionGrowQuads(buf, cR, cG, cB));
 
+  // Hypothesis D: Multi-color border-palette & exterior flood-fill (multi-colored book covers & ID cards)
+  candidates.push(...detectByBorderBackgroundModels(buf));
+
   // Hypothesis B: Illumination-invariant Luma/Otsu candidate
   const lumaQuad = detectDocumentQuadFromLuma(luma, width, height);
   if (isValidDocumentQuad(lumaQuad) && hasReasonableQuadAngles(lumaQuad)) {
@@ -1538,7 +1818,7 @@ export function detectDocumentQuadDetailed(
   // Hypothesis C: Centroid-outward radial edge contour finder (low-contrast & shadowed docs)
   candidates.push(...detectRadialEdgeQuads(buf));
 
-  return selectBestQuadCandidate(candidates, buf, defaultQuad);
+  return selectBestQuadCandidate(candidates, buf, defaultQuad, options?.scanHint ?? 'docs');
 }
 
 /**
@@ -1596,14 +1876,53 @@ function buildIlluminationFlattenedLuma(
 }
 
 /**
- * Multi-channel RGB + radial-edge + straight-line refined auto-crop detector.
+ * Multi-channel RGB + border-palette + radial-edge + straight-line refined auto-crop detector.
  */
 export function detectDocumentQuadFromRgba(
   rgba: Uint8ClampedArray,
   width: number,
-  height: number
+  height: number,
+  options?: { scanHint?: ScanCornerHint }
 ): QuadCorners {
-  return detectDocumentQuadDetailed(rgba, width, height).quad;
+  return detectDocumentQuadDetailed(rgba, width, height, options).quad;
+}
+
+export type AutoDetectedScene = 'document' | 'id_card' | 'book_spread' | 'qr_transfer' | 'qr_code';
+
+export function classifyScannedSceneHint(input: {
+  qrDetected?: boolean;
+  isBsqTransfer?: boolean;
+  qrAreaFraction?: number;
+  quad?: QuadCorners | null;
+  quadConfidence?: number;
+  aspectRatio?: number;
+}): AutoDetectedScene {
+  if (input.isBsqTransfer) {
+    return 'qr_transfer';
+  }
+  if (input.qrDetected && (input.qrAreaFraction ?? 0) >= 0.035) {
+    return 'qr_code';
+  }
+
+  if (input.quad && (input.quadConfidence ?? 1) >= 0.22) {
+    const [tl, tr, br, bl] = input.quad;
+    const avgW = (Math.hypot(tr.x - tl.x, tr.y - tl.y) + Math.hypot(br.x - bl.x, br.y - bl.y)) * 0.5;
+    const avgH = (Math.hypot(bl.x - tl.x, bl.y - tl.y) + Math.hypot(br.x - tr.x, br.y - tr.y)) * 0.5;
+    const ratio =
+      input.aspectRatio && input.aspectRatio > 0
+        ? (avgW * input.aspectRatio) / Math.max(1e-4, avgH)
+        : avgW / Math.max(1e-4, avgH);
+    const area = quadArea(input.quad);
+
+    if (area >= 0.34 && ratio >= 1.24) {
+      return 'book_spread';
+    }
+    if (area >= 0.04 && area <= 0.44 && ratio >= 1.38 && ratio <= 1.78) {
+      return 'id_card';
+    }
+  }
+
+  return 'document';
 }
 
 export interface IdCardLayoutResult {

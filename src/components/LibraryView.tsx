@@ -14,10 +14,13 @@ import {
   MoreHorizontal,
   Pencil,
   PenTool,
+  QrCode,
   Receipt,
+  Scan,
   ScanLine,
   ScanText,
   Search,
+  Share2,
   Sparkles,
   Star,
   StickyNote,
@@ -38,6 +41,8 @@ const HOME_TOOL_ICON_MAP: Record<ToolId, React.FC<{ className?: string }>> = {
   ocr_extract: ScanText,
   sign_doc: PenTool,
   images_to_video: Film,
+  qr_share: QrCode,
+  qr_scan: Scan,
 };
 
 interface LibraryViewProps {
@@ -48,6 +53,8 @@ interface LibraryViewProps {
   initialFolder?: FolderId;
   onOpenDocument: (docId: string) => void;
   onExportDocument: (doc: ScanDocument) => void;
+  onShareDocument?: (doc: ScanDocument) => void;
+  onOpenQrScanner?: () => void;
   onToggleStar: (docId: string) => void;
   onRenameDocument: (docId: string, nextTitle: string) => void;
   onEditProject?: (doc: ScanDocument) => void;
@@ -95,6 +102,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   initialFolder = 'all',
   onOpenDocument,
   onExportDocument,
+  onShareDocument,
+  onOpenQrScanner,
   onToggleStar,
   onRenameDocument,
   onEditProject,
@@ -233,18 +242,34 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   Favorite Tools
                 </h2>
               </div>
-              <button
-                type="button"
-                data-testid="home-all-tools-btn"
-                onClick={() => {
-                  haptics.tap();
-                  onOpenToolsSpace();
-                }}
-                className="inline-flex items-center gap-0.5 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
-              >
-                <span>All Tools</span>
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
+              <div className="flex items-center gap-3">
+                {onOpenQrScanner && (
+                  <button
+                    type="button"
+                    data-testid="home-qr-scan-btn"
+                    onClick={() => {
+                      haptics.tap();
+                      onOpenQrScanner();
+                    }}
+                    className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer"
+                  >
+                    <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Scan QR File</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  data-testid="home-all-tools-btn"
+                  onClick={() => {
+                    haptics.tap();
+                    onOpenToolsSpace();
+                  }}
+                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                >
+                  <span>All Tools</span>
+                  <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             {homeToolItems.length === 0 ? (
@@ -639,6 +664,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                       {/* Desktop Compact Quick Actions */}
                       <div className="hidden sm:flex items-center gap-0.5 shrink-0">
+                        {onShareDocument && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              haptics.tap();
+                              onShareDocument(doc);
+                            }}
+                            aria-label={`Share ${doc.title} via QR`}
+                            title="Share via QR"
+                            className="rounded-lg p-1 text-slate-500 hover:bg-teal-50 hover:text-teal-700 cursor-pointer"
+                          >
+                            <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -960,6 +999,22 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <Pencil className="h-5 w-5 text-slate-600" aria-hidden="true" />
                 <span>{onEditProject ? 'Edit Project Options' : 'Rename Document'}</span>
               </button>
+
+              {onShareDocument && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptics.tap();
+                    const target = actionSheetDoc;
+                    setActionSheetDoc(null);
+                    onShareDocument(target);
+                  }}
+                  className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                >
+                  <Share2 className="h-5 w-5 text-teal-600" aria-hidden="true" />
+                  <span>Share via QR Code Beam</span>
+                </button>
+              )}
 
               <button
                 type="button"

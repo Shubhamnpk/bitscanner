@@ -8,7 +8,9 @@ export type ToolId =
   | 'merge_pdf'
   | 'ocr_extract'
   | 'sign_doc'
-  | 'images_to_video';
+  | 'images_to_video'
+  | 'qr_share'
+  | 'qr_scan';
 
 export interface ToolCatalogItem {
   id: ToolId;
@@ -83,6 +85,22 @@ export const TOOLS_CATALOG: ToolCatalogItem[] = [
     description: 'Turn multi-page scans or photos into a smooth playable video clip.',
     category: 'smart',
     accentClass: 'bg-rose-500/10 text-rose-400 border-transparent',
+  },
+  {
+    id: 'qr_share',
+    title: 'QR File Share',
+    shortLabel: 'QR Share',
+    description: 'Beam documents or any file offline using animated multi-frame QR codes.',
+    category: 'smart',
+    accentClass: 'bg-teal-500/10 text-teal-400 border-transparent',
+  },
+  {
+    id: 'qr_scan',
+    title: 'QR Continuous Scanner',
+    shortLabel: 'QR Scan',
+    description: 'Receive files & scans offline using our camera’s continuous QR reader.',
+    category: 'smart',
+    accentClass: 'bg-emerald-500/10 text-emerald-400 border-transparent',
   },
 ];
 

@@ -89,6 +89,7 @@ interface DocumentEditorProps {
   onUpdateDocument: (nextDoc: ScanDocument) => void;
   onCommitDocument?: (nextDoc: ScanDocument) => void;
   onAddPagesToDoc: () => void;
+  onOpenShareModal?: (pageIndex: number) => void;
   onOpenExport: (pageIndex: number) => void;
   onBackToProject?: () => void;
   onBackToLibrary: () => void;
@@ -159,6 +160,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   onUpdateDocument,
   onCommitDocument,
   onAddPagesToDoc,
+  onOpenShareModal,
   onOpenExport,
   onBackToProject,
   onBackToLibrary,
@@ -1372,7 +1374,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               <button
                 type="button"
                 disabled={shareBusy}
-                onClick={handleShareActivePage}
+                onClick={() => {
+                  if (onOpenShareModal) {
+                    haptics.tap();
+                    onOpenShareModal(safeIdx);
+                  } else {
+                    void handleShareActivePage();
+                  }
+                }}
                 data-testid="view-share-btn"
                 aria-label="Share current page"
                 className="inline-flex h-9 lg:h-auto min-w-[38px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border border-slate-200 lg:border-slate-300 bg-white px-2.5 lg:px-3 lg:py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"

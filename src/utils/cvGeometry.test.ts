@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyHomography,
+  classifyScannedSceneHint,
   computeHomography,
   computeIdCardLayout,
   computeVisibleFeedCropRect,
@@ -477,3 +478,143 @@ test('detectDocumentQuadFromRgba survives heavy diagonal hand shadow across half
   assert.ok(detected[2].y > 0.78, `Shadow cut BR corner short at y=${detected[2].y}`);
   assert.ok(detected[3].y > 0.76, `Shadow cut BL corner short at y=${detected[3].y}`);
 });
+
+test('detectDocumentQuadFromRgba recognizes colorful illustrated book cover without splitting across colors', () => {
+  const w = 180;
+  const h = 220;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+
+  // Neutral slate desk background
+  for (let i = 0; i < w * h; i++) {
+    rgba[i * 4] = 176;
+    rgba[i * 4 + 1] = 172;
+    rgba[i * 4 + 2] = 164;
+    rgba[i * 4 + 3] = 255;
+  }
+
+  // Book cover [30..150] x [24..196] with 4 contrasting color bands + dark spine + white emblem
+  for (let y = 24; y <= 196; y++) {
+    for (let x = 30; x <= 150; x++) {
+      const idx = (y * w + x) * 4;
+      if (y < 76) {
+        // Bold crimson header
+        rgba[idx] = 198;
+        rgba[idx + 1] = 42;
+        rgba[idx + 2] = 52;
+      } else if (y < 142) {
+        // Deep cobalt artwork band with dark illustration box
+        const inDarkCenter = x > 58 && x < 122 && y > 86 && y < 130;
+        rgba[idx] = inDarkCenter ? 22 : 28;
+        rgba[idx + 1] = inDarkCenter ? 26 : 92;
+        rgba[idx + 2] = inDarkCenter ? 36 : 184;
+      } else {
+        // Warm goldenrod lower half
+        rgba[idx] = 228;
+        rgba[idx + 1] = 178;
+        rgba[idx + 2] = 44;
+      }
+    }
+  }
+
+  const detected = detectDocumentQuadFromRgba(rgba, w, h, { scanHint: 'book' });
+  assert.equal(isValidDocumentQuad(detected), true);
+  // True book bounds: left=30/180=0.167, right=150/180=0.833, top=24/220=0.109, bot=196/220=0.891
+  assert.ok(detected[0].x < 0.23 && detected[0].y < 0.17, `Book TL clipped: ${JSON.stringify(detected[0])}`);
+  assert.ok(detected[2].x > 0.77 && detected[2].y > 0.83, `Book BR clipped: ${JSON.stringify(detected[2])}`);
+});
+
+test('detectDocumentQuadFromRgba with id_card hint recovers full outer card perimeter without hard crop', () => {
+  const w = 200;
+  const h = 150;
+  const rgba = new Uint8ClampedArray(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    rgba[i * 4] = 212;
+    rgba[i * 4 + 1] = 204;
+    rgba[i * 4 + 2] = 192;
+    rgba[i * 4 + 3] = 255;
+  }
+
+  // Light cream/white ID card [24..176] x [28..122] with dark top ribbon, portrait box, and inner text border
+  for (let y = 28; y <= 122; y++) {
+    for (let x = 24; x <= 176; x++) {
+      const idx = (y * w + x) * 4;
+      const inHeader = y < 44;
+      const inPortrait = x >= 34 && x <= 74 && y >= 50 && y <= 104;
+      const inInnerLine = x >= 82 && x <= 162 && (y === 64 || y === 82);
+      if (inHeader) {
+        rgba[idx] = 18;
+        rgba[idx + 1] = 68;
+        rgba[idx + 2] = 108;
+      } else if (inPortrait) {
+        rgba[idx] = 52;
+        rgba[idx + 1] = 64;
+        rgba[idx + 2] = 88;
+      } else if (inInnerLine) {
+        rgba[idx] = 30;
+        rgba[idx + 1] = 34;
+        rgba[idx + 2] = 42;
+      } else {
+        rgba[idx] = 248;
+        rgba[idx + 1] = 250;
+        rgba[idx + 2] = 252;
+      }
+    }
+  }
+
+  const detected = detectDocumentQuadFromRgba(rgba, w, h, { scanHint: 'id_card' });
+  assert.equal(isValidDocumentQuad(detected), true);
+  // True card bounds: left=0.12, top=0.187, right=0.88, bottom=0.813 — must include header & never clip inside!
+  assert.ok(detected[0].x <= 0.145 && detected[0].y <= 0.215, `ID card TL hard-cropped: ${JSON.stringify(detected[0])}`);
+  assert.ok(detected[2].x >= 0.855 && detected[2].y >= 0.785, `ID card BR hard-cropped: ${JSON.stringify(detected[2])}`);
+});
+
+test('classifyScannedSceneHint distinguishes QR transfer, QR code, ID card, book spread, and documents', () => {
+  assert.equal(classifyScannedSceneHint({ isBsqTransfer: true }), 'qr_transfer');
+  assert.equal(
+    classifyScannedSceneHint({ qrDetected: true, qrAreaFraction: 0.14 }),
+    'qr_code'
+  );
+  // Small incidental QR stamp on a full invoice sheet should classify as document, not QR
+  assert.equal(
+    classifyScannedSceneHint({
+      qrDetected: true,
+      qrAreaFraction: 0.012,
+      quad: [
+        { x: 0.1, y: 0.08 },
+        { x: 0.9, y: 0.08 },
+        { x: 0.9, y: 0.92 },
+        { x: 0.1, y: 0.92 },
+      ],
+      quadConfidence: 0.8,
+      aspectRatio: 0.75,
+    }),
+    'document'
+  );
+  assert.equal(
+    classifyScannedSceneHint({
+      quad: [
+        { x: 0.15, y: 0.3 },
+        { x: 0.85, y: 0.3 },
+        { x: 0.85, y: 0.74 },
+        { x: 0.15, y: 0.74 },
+      ],
+      quadConfidence: 0.85,
+      aspectRatio: 1,
+    }),
+    'id_card'
+  );
+  assert.equal(
+    classifyScannedSceneHint({
+      quad: [
+        { x: 0.08, y: 0.18 },
+        { x: 0.92, y: 0.18 },
+        { x: 0.92, y: 0.82 },
+        { x: 0.08, y: 0.82 },
+      ],
+      quadConfidence: 0.85,
+      aspectRatio: 1,
+    }),
+    'book_spread'
+  );
+});
+
