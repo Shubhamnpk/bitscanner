@@ -475,7 +475,7 @@ test('detectDocumentQuadFromRgba survives heavy diagonal hand shadow across half
 
   const detected = detectDocumentQuadFromRgba(rgba, w, h);
   assert.equal(isValidDocumentQuad(detected), true);
-  // Bottom corners lie inside heavy shadow (148,192) & (32,184) — must NOT cut off at shadow line!
+  // Bottom corners lie inside heavy shadow (148,192) & (32,184) - must NOT cut off at shadow line!
   assert.ok(detected[2].y > 0.78, `Shadow cut BR corner short at y=${detected[2].y}`);
   assert.ok(detected[3].y > 0.76, `Shadow cut BL corner short at y=${detected[3].y}`);
 });
@@ -564,7 +564,7 @@ test('detectDocumentQuadFromRgba with id_card hint recovers full outer card peri
 
   const detected = detectDocumentQuadFromRgba(rgba, w, h, { scanHint: 'id_card' });
   assert.equal(isValidDocumentQuad(detected), true);
-  // True card bounds: left=0.12, top=0.187, right=0.88, bottom=0.813 — must include header & never clip inside!
+  // True card bounds: left=0.12, top=0.187, right=0.88, bottom=0.813 - must include header & never clip inside!
   assert.ok(detected[0].x <= 0.145 && detected[0].y <= 0.215, `ID card TL hard-cropped: ${JSON.stringify(detected[0])}`);
   assert.ok(detected[2].x >= 0.855 && detected[2].y >= 0.785, `ID card BR hard-cropped: ${JSON.stringify(detected[2])}`);
 });

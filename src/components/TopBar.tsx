@@ -23,7 +23,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     <header
       className={`${
         hideOnMobile ? 'hidden md:block' : 'block'
-      } sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md`}
+      } sticky top-0 z-30 border-b border-line bg-surface pt-safe`}
     >
       <div className="flex h-12 md:h-auto items-center justify-between gap-4 px-4 md:gap-8 md:px-6 md:py-3.5">
         {/* Zone 1: Brand mark + wordmark */}
@@ -33,7 +33,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           className="flex items-center gap-2 text-left whitespace-nowrap shrink-0 min-h-[44px] md:min-h-0 focus-visible:outline-2 focus-visible:outline-teal-600 rounded-md cursor-pointer"
         >
           <img src="/icon.svg" alt="" aria-hidden="true" className="h-7 w-7 md:h-8 md:w-8 rounded-lg" />
-          <span className="text-base md:text-lg font-bold tracking-tight text-slate-900 font-display">
+          <span className="text-base md:text-lg font-bold tracking-tight text-ink font-display">
              bitscan
           </span>
         </button>
@@ -46,8 +46,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('library')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'library' || activeView === 'editor' || activeView === 'project'
-                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'border-accent text-accent-strong font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             Docs
@@ -58,8 +58,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('tools')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'tools'
-                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'border-accent text-accent-strong font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             Tools
@@ -70,8 +70,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('id_studio')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'id_studio'
-                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'border-accent text-accent-strong font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             ID Card
@@ -82,8 +82,8 @@ export const TopBar: React.FC<TopBarProps> = ({
             onClick={() => onNavigate('profile')}
             className={`text-sm font-medium transition-colors whitespace-nowrap shrink-0 py-1 border-b-2 cursor-pointer ${
               activeView === 'profile' || activeView === 'settings'
-                ? 'border-teal-600 text-teal-700 font-bold dark:border-teal-400 dark:text-teal-300'
-                : 'border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'border-accent text-accent-strong font-bold dark:border-teal-400 dark:text-teal-300'
+                : 'border-transparent text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             Profile
@@ -96,7 +96,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             type="button"
             data-testid="top-nav-new-scan"
             onClick={onOpenNewScan}
-            className="inline-flex items-center gap-1.5 rounded-xl md:rounded-lg bg-teal-600 px-3.5 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-semibold text-white hover:bg-teal-700 active:scale-[0.98] transition-all whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl md:rounded-lg bg-accent px-3.5 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-semibold text-white hover:bg-accent-strong active:scale-[0.98] transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <ScanLine className="h-4 w-4" aria-hidden="true" />
             <span>New Scan</span>

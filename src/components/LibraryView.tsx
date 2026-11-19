@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Check,
   ChevronRight,
@@ -8,7 +8,6 @@ import {
   FilePlus2,
   FileText,
   Film,
-  FolderOpen,
   LayoutGrid,
   List,
   MoreHorizontal,
@@ -16,7 +15,6 @@ import {
   Pencil,
   PenTool,
   QrCode,
-  Receipt,
   Scan,
   ScanLine,
   ScanText,
@@ -24,14 +22,15 @@ import {
   Share2,
   Sparkles,
   Star,
-  StickyNote,
   Trash2,
   X,
 } from 'lucide-react';
 import type { FolderId, SavedSignature, ScanDocument } from '../types/scanner';
 import { useHaptics } from '../hooks/useHaptics';
+import { cardClass } from './ui/primitives';
 import { filterAndSortDocuments, type SortMode } from '../utils/cvGeometry';
-import { TOOLS_CATALOG, type ToolId } from '../utils/settingsStore';
+import { TOOLS_CATALOG, type ToolId } from '../data/tools';
+import { FOLDERS, FOLDER_LABEL } from '../data/folders';
 
 const HOME_TOOL_ICON_MAP: Record<ToolId, React.FC<{ className?: string }>> = {
   images_to_pdf: FileImage,
@@ -67,24 +66,6 @@ interface LibraryViewProps {
   onOpenSignatureAsDoc?: (sig: SavedSignature) => void;
   onDeleteSignature?: (id: string) => void;
 }
-
-const FOLDERS: Array<{ id: FolderId; label: string; icon: React.FC<{ className?: string }> }> = [
-  { id: 'all', label: 'All Docs', icon: FolderOpen },
-  { id: 'documents', label: 'Documents', icon: FileText },
-  { id: 'id_cards', label: 'ID Cards', icon: CreditCard },
-  { id: 'receipts', label: 'Receipts', icon: Receipt },
-  { id: 'notes', label: 'Notes', icon: StickyNote },
-  { id: 'signatures', label: 'Signatures', icon: PenTool },
-  { id: 'starred', label: 'Starred', icon: Star },
-];
-
-const FOLDER_LABEL: Record<ScanDocument['folder'], string> = {
-  documents: 'Document',
-  id_cards: 'ID Card',
-  receipts: 'Receipt',
-  notes: 'Notes',
-  signatures: 'Signature',
-};
 
 function formatRelativeDate(ts: number): string {
   const diffMin = Math.round((Date.now() - ts) / 60_000);
@@ -149,16 +130,31 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     setActiveFolder(initialFolder);
   }, [initialFolder]);
 
-  const homeToolItems = TOOLS_CATALOG.filter((t) => favoriteTools.includes(t.id));
+  const homeToolItems = useMemo(
+    () => TOOLS_CATALOG.filter((t) => favoriteTools.includes(t.id)),
+    [favoriteTools]
+  );
 
-  const visibleDocs = filterAndSortDocuments(documents, searchQuery, activeFolder, sortBy);
-  const totalPages = documents.reduce((acc, d) => acc + d.pages.length, 0);
+  // These walk every document (each one carries several base64 images), so they
+  // must not re-run on unrelated state like a menu opening or a rename draft.
+  const visibleDocs = useMemo(
+    () => filterAndSortDocuments(documents, searchQuery, activeFolder, sortBy),
+    [documents, searchQuery, activeFolder, sortBy]
+  );
+  const totalPages = useMemo(
+    () => documents.reduce((acc, d) => acc + d.pages.length, 0),
+    [documents]
+  );
+  const folderCounts = useMemo(() => {
+    const counts: Partial<Record<FolderId, number>> = { all: documents.length };
+    for (const doc of documents) {
+      if (doc.starred) counts.starred = (counts.starred ?? 0) + 1;
+      counts[doc.folder] = (counts[doc.folder] ?? 0) + 1;
+    }
+    return counts;
+  }, [documents]);
 
-  const countForFolder = (id: FolderId) => {
-    if (id === 'all') return documents.length;
-    if (id === 'starred') return documents.filter((d) => d.starred).length;
-    return documents.filter((d) => d.folder === id).length;
-  };
+  const countForFolder = (id: FolderId) => folderCounts[id] ?? 0;
 
   const commitRename = (docId: string) => {
     const trimmed = draftTitle.trim();
@@ -178,8 +174,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
   return (
     <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col pb-24 md:pb-0 lg:flex-row">
       {/* Desktop Left Sidebar Folder Rail */}
-      <aside className="hidden lg:block w-64 shrink-0 border-r border-slate-200 bg-white p-5">
-        <div className="mb-3 px-2 text-xs font-semibold text-slate-500">Workspace Folders</div>
+      <aside className="hidden lg:block w-64 shrink-0 border-r border-line bg-surface p-5">
+        <div className="mb-3 px-2 text-xs font-semibold text-ink-muted">Workspace Folders</div>
         <nav aria-label="Document Folders" className="flex flex-col gap-1">
           {FOLDERS.map((folder) => {
             const Icon = folder.icon;
@@ -194,40 +190,40 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 onClick={() => setActiveFolder(folder.id)}
                 className={`flex items-center justify-between gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   active
-                    ? 'bg-teal-50 text-teal-900 dark:bg-teal-500/20 dark:text-teal-200'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-white'
+                    ? 'bg-accent-soft text-accent-text dark:bg-teal-500/20 dark:text-teal-200'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink dark:text-ink-faint dark:hover:bg-slate-800/60 dark:hover:text-white'
                 }`}
               >
                 <span className="flex items-center gap-2.5">
                   <Icon
-                    className={`h-4 w-4 ${active ? 'text-teal-600 dark:text-teal-400' : 'text-slate-400'}`}
+                    className={`h-4 w-4 ${active ? 'text-accent dark:text-teal-400' : 'text-ink-faint'}`}
                     aria-hidden="true"
                   />
                   <span>{folder.label}</span>
                 </span>
-                <span className={`text-xs font-mono-tabular ${active ? 'text-teal-700 dark:text-teal-300 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{count}</span>
+                <span className={`text-xs font-mono-tabular ${active ? 'text-accent-strong dark:text-teal-300 font-semibold' : 'text-ink-muted dark:text-ink-faint'}`}>{count}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="mt-6 border-t border-slate-200 pt-5">
-          <div className="mb-2.5 px-2 text-xs font-semibold text-slate-500">Quick Workflows</div>
+        <div className="mt-6 border-t border-line pt-5">
+          <div className="mb-2.5 px-2 text-xs font-semibold text-ink-muted">Quick Workflows</div>
           <div className="flex flex-col gap-2">
             <button
               type="button"
               onClick={onStartNewScan}
-              className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:border-teal-500/50 hover:bg-teal-50/40 transition-colors cursor-pointer"
+              className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-sm font-medium text-ink-soft hover:border-teal-500/50 hover:bg-accent-soft/40 transition-colors cursor-pointer"
             >
-              <ScanLine className="h-4 w-4 text-teal-600 shrink-0" aria-hidden="true" />
+              <ScanLine className="h-4 w-4 text-accent shrink-0" aria-hidden="true" />
               <span>Scan &amp; Auto-Crop</span>
             </button>
             <button
               type="button"
               onClick={onOpenIdStudio}
-              className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:border-teal-500/50 hover:bg-teal-50/40 transition-colors cursor-pointer"
+              className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-sm font-medium text-ink-soft hover:border-teal-500/50 hover:bg-accent-soft/40 transition-colors cursor-pointer"
             >
-              <CreditCard className="h-4 w-4 text-teal-600 shrink-0" aria-hidden="true" />
+              <CreditCard className="h-4 w-4 text-accent shrink-0" aria-hidden="true" />
               <span>2-Sided ID Card PDF</span>
             </button>
             {onCreateSignature && (
@@ -235,9 +231,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 type="button"
                 data-testid="library-create-signature-btn"
                 onClick={onCreateSignature}
-                className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:border-teal-500/50 hover:bg-teal-50/40 transition-colors cursor-pointer"
+                className="flex items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-sm font-medium text-ink-soft hover:border-teal-500/50 hover:bg-accent-soft/40 transition-colors cursor-pointer"
               >
-                <PenTool className="h-4 w-4 text-teal-600 shrink-0" aria-hidden="true" />
+                <PenTool className="h-4 w-4 text-accent shrink-0" aria-hidden="true" />
                 <span>Create E-Signature</span>
               </button>
             )}
@@ -252,11 +248,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <section
             data-testid="home-tools-section"
             aria-label="Quick Document Tools"
-            className="mb-4 rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4"
+            className={cardClass('mb-4 p-3 sm:p-4')}
           >
             <div className="mb-2.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h2 className="text-xs font-bold uppercase tracking-wider text-ink-muted">
                   Favorite Tools
                 </h2>
               </div>
@@ -269,7 +265,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       haptics.tap();
                       onOpenQrScanner();
                     }}
-                    className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-strong hover:bg-accent-soft transition-colors cursor-pointer"
                   >
                     <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Scan QR File</span>
@@ -282,7 +278,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     haptics.tap();
                     onOpenToolsSpace();
                   }}
-                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-0.5 text-xs font-semibold text-accent-strong hover:underline cursor-pointer"
                 >
                   <span>All Tools</span>
                   <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -297,10 +293,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   haptics.tap();
                   onOpenToolsSpace();
                 }}
-                className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 px-3.5 py-2.5 text-xs font-medium text-slate-600 hover:border-teal-600 hover:text-teal-700 cursor-pointer"
+                className="flex w-full items-center justify-between rounded-xl border border-dashed border-line-strong px-3.5 py-2.5 text-xs font-medium text-ink-muted hover:border-accent hover:text-accent-strong cursor-pointer"
               >
                 <span>Star favorite tools in the Tools space to pin shortcuts here</span>
-                <span className="font-semibold text-teal-700">Explore</span>
+                <span className="font-semibold text-accent-strong">Explore</span>
               </button>
             ) : (
               <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
@@ -315,14 +311,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         haptics.tap();
                         onOpenToolsSpace(tool.id);
                       }}
-                      className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-100 bg-slate-50/70 px-1.5 py-2.5 text-center hover:border-teal-500/40 hover:bg-teal-50/40 active:scale-95 transition-all cursor-pointer"
+                      className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-line-soft bg-surface-muted/70 px-1.5 py-2.5 text-center hover:border-teal-500/40 hover:bg-accent-soft/40 active:scale-95 transition-all cursor-pointer"
                     >
                       <span
                         className={`flex h-9 w-9 items-center justify-center rounded-xl border ${tool.accentClass}`}
                       >
                         <Icon className="h-4 w-4" aria-hidden="true" />
                       </span>
-                      <span className="w-full truncate text-[11px] font-semibold text-slate-800">
+                      <span className="w-full truncate text-[11px] font-semibold text-ink-strong">
                         {tool.shortLabel}
                       </span>
                     </button>
@@ -350,12 +346,12 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 }}
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 min-h-[40px] text-xs font-semibold transition-all whitespace-nowrap shrink-0 active:scale-95 cursor-pointer ${
                   active
-                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white dark:shadow-sm'
-                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                    ? 'bg-slate-900 text-white dark:bg-accent dark:text-white dark:shadow-sm'
+                    : 'border border-line bg-surface text-ink-muted hover:bg-surface-muted dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                 }`}
               >
                 <span>{folder.label}</span>
-                <span className={`font-mono-tabular ${active ? 'text-slate-300 dark:text-teal-100' : 'text-slate-400 dark:text-slate-400'}`}>
+                <span className={`font-mono-tabular ${active ? 'text-slate-300 dark:text-teal-100' : 'text-ink-faint dark:text-ink-faint'}`}>
                   {count}
                 </span>
               </button>
@@ -366,10 +362,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         {/* Title + Search + Sort + View Mode Strip */}
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 text-balance">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink text-balance">
               {FOLDERS.find((f) => f.id === activeFolder)?.label ?? 'All Docs'}
             </h1>
-            <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
+            <p className="mt-0.5 text-xs sm:text-sm text-ink-muted">
               <span className="tabular-nums">{visibleDocs.length}</span>{' '}
               {visibleDocs.length === 1 ? 'document' : 'documents'}
               <span className="mx-1.5" aria-hidden="true">
@@ -383,7 +379,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative basis-full sm:basis-auto sm:w-64">
               <Search
-                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
                 aria-hidden="true"
               />
               <input
@@ -392,7 +388,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search title or OCR text..."
                 aria-label="Search documents"
-                className="w-full min-h-[44px] sm:min-h-[40px] rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none"
+                className="w-full min-h-[44px] sm:min-h-[40px] rounded-xl border border-line bg-surface py-2 pl-10 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
               />
             </div>
 
@@ -400,14 +396,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortMode)}
               aria-label="Sort documents"
-              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[40px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-teal-600 focus:outline-none"
+              className="flex-1 sm:flex-initial min-h-[44px] sm:min-h-[40px] rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink-soft focus:border-accent focus:outline-none"
             >
               <option value="updated_desc">Recently Modified</option>
               <option value="title_asc">Title A–Z</option>
               <option value="pages_desc">Most Pages</option>
             </select>
 
-            <div className="flex items-center rounded-xl border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800/90">
+            <div className="flex items-center rounded-xl border border-line bg-surface p-0.5 dark:border-slate-700 dark:bg-slate-800/90">
               <button
                 type="button"
                 aria-label="Grid view"
@@ -418,8 +414,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 }}
                 className={`flex h-9 w-9 items-center justify-center rounded-lg cursor-pointer transition-colors ${
                   viewMode === 'grid'
-                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                    ? 'bg-slate-900 text-white dark:bg-accent dark:text-white'
+                    : 'text-ink-muted hover:text-ink-strong dark:text-ink-faint dark:hover:text-white'
                 }`}
               >
                 <LayoutGrid className="h-4 w-4" aria-hidden="true" />
@@ -434,8 +430,8 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 }}
                 className={`flex h-9 w-9 items-center justify-center rounded-lg cursor-pointer transition-colors ${
                   viewMode === 'list'
-                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'
+                    ? 'bg-slate-900 text-white dark:bg-accent dark:text-white'
+                    : 'text-ink-muted hover:text-ink-strong dark:text-ink-faint dark:hover:text-white'
                 }`}
               >
                 <List className="h-4 w-4" aria-hidden="true" />
@@ -446,10 +442,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
         {/* Mobile Create Signature Action Row */}
         {activeFolder === 'signatures' && onCreateSignature && (
-          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-teal-200 bg-teal-50/60 px-4 py-3">
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-accent-line bg-accent-soft/60 px-4 py-3">
             <div className="min-w-0">
-              <div className="text-sm font-semibold text-teal-950">E-Signature Studio</div>
-              <div className="text-xs text-teal-800/80">
+              <div className="text-sm font-semibold text-accent-text">E-Signature Studio</div>
+              <div className="text-xs text-accent-text/80">
                 Draw or type signatures with custom backgrounds &amp; download as PNG or editable document.
               </div>
             </div>
@@ -460,7 +456,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 haptics.tap();
                 onCreateSignature();
               }}
-              className="shrink-0 inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+              className="shrink-0 inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-3.5 py-2 text-xs font-semibold text-white hover:bg-accent-strong cursor-pointer"
             >
               <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
               <span>New Signature</span>
@@ -471,7 +467,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         {/* Saved Signature Stamps (shown in Signatures folder if any saved overlay stamps exist) */}
         {activeFolder === 'signatures' && savedSignatures.length > 0 && (
           <div className="mb-5">
-            <div className="mb-2 text-xs font-semibold text-slate-500">
+            <div className="mb-2 text-xs font-semibold text-ink-muted">
               Reusable Signature Stamps ({savedSignatures.length})
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -479,20 +475,20 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <div
                   key={sig.id}
                   data-testid="saved-signature-stamp-card"
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5"
+                  className="flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5"
                 >
                   <img
                     src={sig.dataUrl}
                     alt={sig.label}
-                    className="h-12 w-24 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-contain p-1"
+                    className="h-12 w-24 shrink-0 rounded-lg border border-line bg-surface-muted object-contain p-1"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-slate-900">{sig.label}</div>
+                    <div className="truncate text-xs font-semibold text-ink">{sig.label}</div>
                     <div className="mt-1 flex items-center gap-1.5">
                       <a
                         href={sig.dataUrl}
                         download={`${sig.label.replace(/[^a-zA-Z0-9_\-. ]/g, '_')}.png`}
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                        className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-ink-soft hover:bg-surface-muted"
                       >
                         <Download className="h-3 w-3" aria-hidden="true" />
                         <span>PNG</span>
@@ -501,7 +497,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenSignatureAsDoc(sig)}
-                          className="rounded-md bg-teal-50 px-2 py-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                          className="rounded-md bg-accent-soft px-2 py-1 text-[11px] font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
                         >
                           Edit Doc
                         </button>
@@ -511,7 +507,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           type="button"
                           onClick={() => onDeleteSignature(sig.id)}
                           aria-label={`Delete signature ${sig.label}`}
-                          className="ml-auto rounded p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                          className="ml-auto rounded p-1 text-ink-faint hover:text-danger cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -526,16 +522,16 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
         {/* Empty State */}
         {visibleDocs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-14 px-6 text-center">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line-strong bg-surface py-14 px-6 text-center">
             <FileText className="h-10 w-10 text-slate-300 mb-3" aria-hidden="true" />
-            <h2 className="text-base font-semibold text-slate-900">
+            <h2 className="text-base font-semibold text-ink">
               {searchQuery
                 ? 'No matching scans found'
                 : activeFolder === 'signatures'
                   ? 'No signature documents yet'
                   : 'This folder is empty'}
             </h2>
-            <p className="mt-1 max-w-sm text-sm text-slate-500">
+            <p className="mt-1 max-w-sm text-sm text-ink-muted">
               {searchQuery
                 ? 'Try clearing your search filter or scan a new document.'
                 : activeFolder === 'signatures'
@@ -547,7 +543,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[44px] rounded-xl border border-line bg-surface px-5 py-2 text-sm font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
                 >
                   Clear Search
                 </button>
@@ -555,7 +551,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={onCreateSignature}
-                  className="min-h-[44px] rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-700 active:scale-[0.98] transition-transform cursor-pointer"
+                  className="min-h-[44px] rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-strong active:scale-[0.98] transition-transform cursor-pointer"
                 >
                   Create Signature
                 </button>
@@ -563,7 +559,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <button
                   type="button"
                   onClick={onStartNewScan}
-                  className="min-h-[44px] rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-700 active:scale-[0.98] transition-transform cursor-pointer"
+                  className="min-h-[44px] rounded-xl bg-accent px-5 py-2 text-sm font-semibold text-white hover:bg-accent-strong active:scale-[0.98] transition-transform cursor-pointer"
                 >
                   Scan First Document
                 </button>
@@ -586,10 +582,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 <article
                   key={doc.id}
                   data-testid="document-preview-card"
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white transition-all hover:border-teal-500/40"
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-line/80 bg-surface transition-all hover:border-teal-500/40"
                 >
                   {/* Crisp Full-Bleed Thumbnail Sheet Preview (Zero Heavy Gray Border on Mobile) */}
-                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-100/90">
+                  <div className="relative aspect-[4/5] w-full overflow-hidden bg-surface-subtle/90">
                     <button
                       type="button"
                       onClick={() => {
@@ -606,7 +602,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           referrerPolicy="no-referrer"
                           className={
                             fitContain
-                              ? 'h-full w-full object-contain bg-white p-2.5 transition-transform duration-200 group-hover:scale-[1.02]'
+                              ? 'h-full w-full object-contain bg-surface p-2.5 transition-transform duration-200 group-hover:scale-[1.02]'
                               : 'h-full w-full object-cover object-top transition-transform duration-200 group-hover:scale-[1.02]'
                           }
                         />
@@ -632,7 +628,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         onToggleStar(doc.id);
                       }}
                       aria-label={doc.starred ? `Unstar ${doc.title}` : `Star ${doc.title}`}
-                      className={`hidden sm:flex absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-white/90 text-slate-400 shadow-xs backdrop-blur-xs hover:text-amber-500 transition-opacity cursor-pointer ${
+                      className={`hidden sm:flex absolute right-2 top-2 h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-surface/90 text-ink-faint shadow-xs backdrop-blur-xs hover:text-amber-500 transition-opacity cursor-pointer ${
                         doc.starred ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                       }`}
                     >
@@ -644,7 +640,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   </div>
 
                   {/* Clean Compact 2-Line CamScanner Footer + Native Overflow Sheet Trigger */}
-                  <div className="flex flex-col gap-0.5 border-t border-slate-200 px-2.5 py-2 sm:px-3 sm:py-2.5 bg-slate-50/90">
+                  <div className="flex flex-col gap-0.5 border-t border-line px-2.5 py-2 sm:px-3 sm:py-2.5 bg-surface-muted/90">
                     <div className="flex items-center justify-between gap-1">
                       {editingId === doc.id ? (
                         <input
@@ -658,7 +654,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           }}
                           autoFocus
                           aria-label="Rename document"
-                          className="w-full rounded-lg border border-teal-600 px-2 py-0.5 text-xs sm:text-sm font-semibold text-slate-900 focus:outline-none"
+                          className="w-full rounded-lg border border-accent px-2 py-0.5 text-xs sm:text-sm font-semibold text-ink focus:outline-none"
                         />
                       ) : (
                         <button
@@ -667,7 +663,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             haptics.tap();
                             onOpenDocument(doc.id);
                           }}
-                          className="min-w-0 flex-1 truncate text-left text-xs sm:text-sm font-semibold text-slate-900 hover:text-teal-700 cursor-pointer"
+                          className="min-w-0 flex-1 truncate text-left text-xs sm:text-sm font-semibold text-ink hover:text-accent-strong cursor-pointer"
                         >
                           {doc.title}
                         </button>
@@ -681,7 +677,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           openActionSheet(doc);
                         }}
                         aria-label={`More actions for ${doc.title}`}
-                        className="flex sm:hidden h-8 w-8 shrink-0 -mr-1 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                        className="flex sm:hidden h-8 w-8 shrink-0 -mr-1 items-center justify-center rounded-lg text-ink-muted hover:bg-surface-subtle active:scale-95 cursor-pointer"
                       >
                         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -697,7 +693,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             }}
                             aria-label={`Share ${doc.title} via QR`}
                             title="Share via QR"
-                            className="rounded-lg p-1 text-slate-500 hover:bg-teal-50 hover:text-teal-700 cursor-pointer"
+                            className="rounded-lg p-1 text-ink-muted hover:bg-accent-soft hover:text-accent-strong cursor-pointer"
                           >
                             <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
@@ -710,7 +706,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           }}
                           aria-label={`Export ${doc.title}`}
                           title="Export"
-                          className="rounded-lg p-1 text-teal-700 hover:bg-teal-50 cursor-pointer"
+                          className="rounded-lg p-1 text-accent-strong hover:bg-accent-soft cursor-pointer"
                         >
                           <Download className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -726,7 +722,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           }}
                           aria-label={`Edit project ${doc.title}`}
                           title="Edit project"
-                          className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+                          className="rounded-lg p-1 text-ink-faint hover:bg-surface-subtle hover:text-ink-soft cursor-pointer"
                         >
                           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
@@ -735,14 +731,14 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           onClick={() => onDeleteDocument(doc.id)}
                           aria-label={`Delete ${doc.title}`}
                           title="Delete"
-                          className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+                          className="rounded-lg p-1 text-ink-faint hover:bg-danger-soft hover:text-danger cursor-pointer"
                         >
                           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-1 text-[11px] text-slate-500">
+                    <div className="flex items-center justify-between gap-1 text-[11px] text-ink-muted">
                       <div className="flex items-center gap-1 truncate">
                         <span className="truncate">{formatRelativeDate(doc.updatedAt)}</span>
                         <span aria-hidden="true">·</span>
@@ -758,7 +754,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           onToggleStar(doc.id);
                         }}
                         aria-label={doc.starred ? `Unstar ${doc.title}` : `Star ${doc.title}`}
-                        className="flex sm:hidden h-6 w-6 shrink-0 items-center justify-center rounded text-slate-400 cursor-pointer"
+                        className="flex sm:hidden h-6 w-6 shrink-0 items-center justify-center rounded text-ink-faint cursor-pointer"
                       >
                         <Star
                           className={`h-3.5 w-3.5 ${
@@ -782,7 +778,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 return (
                   <article
                     key={doc.id}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-2.5 active:bg-slate-50 transition-colors"
+                    className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-2.5 active:bg-surface-muted transition-colors"
                   >
                     <button
                       type="button"
@@ -793,7 +789,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       aria-label={`Open ${doc.title}`}
                       className="flex flex-1 min-w-0 items-center gap-3 text-left cursor-pointer"
                     >
-                      <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <div className="h-16 w-12 shrink-0 overflow-hidden rounded-xl border border-line bg-surface-subtle">
                         {cover ? (
                           <img
                             src={cover}
@@ -806,7 +802,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             }
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-slate-400">
+                          <div className="flex h-full w-full items-center justify-center text-ink-faint">
                             <FileText className="h-5 w-5" aria-hidden="true" />
                           </div>
                         )}
@@ -814,7 +810,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
-                          <span className="truncate text-sm font-semibold text-slate-900">
+                          <span className="truncate text-sm font-semibold text-ink">
                             {doc.title}
                           </span>
                           {doc.starred && (
@@ -824,7 +820,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             />
                           )}
                         </div>
-                        <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
                           <span>{FOLDER_LABEL[doc.folder]}</span>
                           <span aria-hidden="true">·</span>
                           <span className="tabular-nums">
@@ -844,7 +840,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           onExportDocument(doc);
                         }}
                         aria-label={`Export ${doc.title} as PDF`}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl text-teal-700 hover:bg-teal-50 active:scale-95 cursor-pointer"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl text-accent-strong hover:bg-accent-soft active:scale-95 cursor-pointer"
                       >
                         <Download className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -855,7 +851,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                           openActionSheet(doc);
                         }}
                         aria-label={`More actions for ${doc.title}`}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 active:scale-95 cursor-pointer"
+                        className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted hover:bg-surface-subtle active:scale-95 cursor-pointer"
                       >
                         <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
                       </button>
@@ -865,9 +861,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
               })}
             </div>
 
-            <div className="hidden sm:block overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="hidden sm:block overflow-hidden rounded-2xl border border-line bg-surface">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                <thead className="border-b border-line bg-surface-muted text-xs font-semibold text-ink-muted">
                   <tr>
                     <th className="py-3 px-4">Document</th>
                     <th className="py-3 px-4">Category</th>
@@ -876,23 +872,23 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-line-soft">
                   {visibleDocs.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-4 font-medium text-slate-900">
+                    <tr key={doc.id} className="hover:bg-surface-muted">
+                      <td className="py-2.5 px-4 font-medium text-ink">
                         <button
                           type="button"
                           onClick={() => onOpenDocument(doc.id)}
-                          className="text-left hover:text-teal-700 cursor-pointer"
+                          className="text-left hover:text-accent-strong cursor-pointer"
                         >
                           {doc.title}
                         </button>
                       </td>
-                      <td className="py-2.5 px-4 text-slate-500">{FOLDER_LABEL[doc.folder]}</td>
-                      <td className="py-2.5 px-4 text-right font-mono-tabular text-slate-700">
+                      <td className="py-2.5 px-4 text-ink-muted">{FOLDER_LABEL[doc.folder]}</td>
+                      <td className="py-2.5 px-4 text-right font-mono-tabular text-ink-soft">
                         {doc.pages.length}
                       </td>
-                      <td className="py-2.5 px-4 text-right text-slate-500">
+                      <td className="py-2.5 px-4 text-right text-ink-muted">
                         {formatRelativeDate(doc.updatedAt)}
                       </td>
                       <td className="py-2.5 px-4 text-right">
@@ -901,7 +897,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             type="button"
                             onClick={() => onExportDocument(doc)}
                             aria-label={`Export ${doc.title}`}
-                            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                            className="rounded-lg px-2.5 py-1 text-xs font-semibold text-accent-strong hover:bg-accent-soft cursor-pointer"
                           >
                             Export
                           </button>
@@ -909,7 +905,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                             type="button"
                             onClick={() => onDeleteDocument(doc.id)}
                             aria-label={`Delete ${doc.title}`}
-                            className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                            className="rounded-lg p-1.5 text-ink-faint hover:text-danger cursor-pointer"
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </button>
@@ -935,10 +931,10 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-t-3xl bg-white pb-safe shadow-2xl animate-sheet-up"
+            className="w-full max-w-lg rounded-t-3xl bg-surface pb-safe shadow-2xl animate-sheet-up"
           >
-            <div className="mx-auto my-3 h-1.5 w-10 rounded-full bg-slate-300" />
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 pb-3">
+            <div className="mx-auto my-3 h-1.5 w-10 rounded-full bg-line-strong" />
+            <div className="flex items-center justify-between border-b border-line-soft px-5 pb-3">
               <div className="min-w-0 flex-1 pr-4">
                 {sheetRenaming ? (
                   <div className="flex items-center gap-2">
@@ -955,7 +951,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                       }}
                       autoFocus
                       aria-label="New document title"
-                      className="w-full rounded-xl border border-teal-600 px-3 py-1.5 text-sm font-semibold text-slate-900 focus:outline-none"
+                      className="w-full rounded-xl border border-accent px-3 py-1.5 text-sm font-semibold text-ink focus:outline-none"
                     />
                     <button
                       type="button"
@@ -964,17 +960,17 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                         setActionSheetDoc(null);
                       }}
                       aria-label="Save title"
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
                 ) : (
                   <>
-                    <div className="truncate text-base font-bold text-slate-900">
+                    <div className="truncate text-base font-bold text-ink">
                       {actionSheetDoc.title}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-ink-muted">
                       {FOLDER_LABEL[actionSheetDoc.folder]} · {actionSheetDoc.pages.length}{' '}
                       {actionSheetDoc.pages.length === 1 ? 'page' : 'pages'}
                     </div>
@@ -985,7 +981,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                 type="button"
                 onClick={() => setActionSheetDoc(null)}
                 aria-label="Close document actions"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-ink-faint hover:bg-surface-subtle"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1000,9 +996,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   setActionSheetDoc(null);
                   onOpenDocument(id);
                 }}
-                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-ink active:bg-surface-subtle"
               >
-                <ScanLine className="h-5 w-5 text-teal-600" aria-hidden="true" />
+                <ScanLine className="h-5 w-5 text-accent" aria-hidden="true" />
                 <span>Open Project Pages</span>
               </button>
 
@@ -1018,9 +1014,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     setSheetRenaming(true);
                   }
                 }}
-                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-ink active:bg-surface-subtle"
               >
-                <Pencil className="h-5 w-5 text-slate-600" aria-hidden="true" />
+                <Pencil className="h-5 w-5 text-ink-muted" aria-hidden="true" />
                 <span>{onEditProject ? 'Edit Project Options' : 'Rename Document'}</span>
               </button>
 
@@ -1033,9 +1029,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                     setActionSheetDoc(null);
                     onShareDocument(target);
                   }}
-                  className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                  className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-ink active:bg-surface-subtle"
                 >
-                  <Share2 className="h-5 w-5 text-teal-600" aria-hidden="true" />
+                  <Share2 className="h-5 w-5 text-accent" aria-hidden="true" />
                   <span>Share via QR Code Beam</span>
                 </button>
               )}
@@ -1048,9 +1044,9 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   setActionSheetDoc(null);
                   onExportDocument(target);
                 }}
-                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-ink active:bg-surface-subtle"
               >
-                <Download className="h-5 w-5 text-teal-600" aria-hidden="true" />
+                <Download className="h-5 w-5 text-accent" aria-hidden="true" />
                 <span>Export (PDF, Image, Word)</span>
               </button>
 
@@ -1061,11 +1057,11 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   onToggleStar(actionSheetDoc.id);
                   setActionSheetDoc(null);
                 }}
-                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-slate-900 active:bg-slate-100"
+                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-ink active:bg-surface-subtle"
               >
                 <Star
                   className={`h-5 w-5 ${
-                    actionSheetDoc.starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
+                    actionSheetDoc.starred ? 'fill-amber-400 text-amber-500' : 'text-ink-faint'
                   }`}
                   aria-hidden="true"
                 />
@@ -1080,7 +1076,7 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
                   setActionSheetDoc(null);
                   onDeleteDocument(target.id);
                 }}
-                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-red-600 active:bg-red-50"
+                className="flex min-h-[50px] items-center gap-3.5 rounded-xl px-4 text-left text-sm font-medium text-danger active:bg-danger-soft"
               >
                 <Trash2 className="h-5 w-5" aria-hidden="true" />
                 <span>Delete Document</span>
@@ -1092,3 +1088,6 @@ export const LibraryView: React.FC<LibraryViewProps> = ({
     </div>
   );
 };
+
+
+

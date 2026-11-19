@@ -61,12 +61,12 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
   return (
     <div
       data-testid="selected-overlay-controls"
-      className={`rounded-xl border border-teal-500/35 bg-teal-50/55 ${
+      className={`rounded-xl border border-teal-500/35 bg-accent-soft/55 ${
         compact ? 'p-2.5 gap-2' : 'p-3 gap-2.5'
       } flex flex-col`}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold capitalize text-teal-950">
+        <span className="text-xs font-bold capitalize text-accent-text">
           Edit{' '}
           {annotation.type === 'redaction'
             ? 'Redaction'
@@ -79,7 +79,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
             type="button"
             onClick={onDuplicate}
             aria-label="Duplicate selected overlay"
-            className="inline-flex h-7 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-line bg-surface px-2 text-[11px] font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
           >
             <CopyPlus className="h-3 w-3" aria-hidden="true" />
             <span>Copy</span>
@@ -88,7 +88,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
             type="button"
             onClick={onDelete}
             aria-label="Remove selected overlay"
-            className="inline-flex h-7 items-center gap-1 rounded-lg border border-red-200 bg-white px-2 text-[11px] font-medium text-red-600 hover:bg-red-50 cursor-pointer"
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-danger-line bg-surface px-2 text-[11px] font-medium text-danger hover:bg-danger-soft cursor-pointer"
           >
             <Trash2 className="h-3 w-3" aria-hidden="true" />
           </button>
@@ -105,7 +105,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
             onChange={(e) => onUpdate({ text: e.target.value })}
             placeholder="Enter text..."
             aria-label="Edit selected text"
-            className="w-full min-h-[36px] rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-sm font-medium text-slate-900 focus:border-teal-600 focus:outline-none"
+            className="w-full min-h-[36px] rounded-lg border border-line-strong bg-surface px-2.5 py-1 text-sm font-medium text-ink focus:border-accent focus:outline-none"
           />
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -135,11 +135,11 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                     fontSize: clamp((annotation.fontSize ?? 0.032) - 0.005, 0.014, 0.14),
                   })
                 }
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-surface text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 <Minus className="h-3 w-3" aria-hidden="true" />
               </button>
-              <span className="min-w-[36px] text-center font-mono-tabular text-[11px] font-semibold text-slate-800">
+              <span className="min-w-[36px] text-center font-mono-tabular text-[11px] font-semibold text-ink-strong">
                 {fontScalePct}%
               </span>
               <button
@@ -150,7 +150,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                     fontSize: clamp((annotation.fontSize ?? 0.032) + 0.005, 0.014, 0.14),
                   })
                 }
-                className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="flex h-7 w-7 items-center justify-center rounded-lg border border-line bg-surface text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 <Plus className="h-3 w-3" aria-hidden="true" />
               </button>
@@ -173,8 +173,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                   onClick={() => onUpdate({ shapeKind: s.id })}
                   className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border py-1 text-[10px] font-semibold cursor-pointer ${
                     active
-                      ? 'border-teal-600 bg-white text-teal-800 shadow-2xs'
-                      : 'border-slate-200 bg-white/70 text-slate-600'
+                      ? 'border-accent bg-surface text-accent-text shadow-2xs'
+                      : 'border-line bg-white/70 text-ink-muted'
                   }`}
                 >
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -213,8 +213,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 }
                 className={`rounded-lg border px-2 py-1 text-[10px] font-semibold cursor-pointer ${
                   annotation.fillColor && annotation.fillColor !== 'transparent'
-                    ? 'border-teal-600 bg-teal-600 text-white'
-                    : 'border-slate-200 bg-white text-slate-700'
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-line bg-surface text-ink-soft'
                 }`}
               >
                 {annotation.fillColor && annotation.fillColor !== 'transparent' ? 'Filled' : 'Outline'}
@@ -226,7 +226,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
 
       {/* Static-bounds Width Slider + Stepper (fixed max=92 so moving x never shifts slider thumb!) */}
       <div>
-        <div className="mb-1 flex items-center justify-between text-[11px] text-slate-700">
+        <div className="mb-1 flex items-center justify-between text-[11px] text-ink-soft">
           <div className="flex items-center gap-1.5">
             <span>{annotation.type === 'signature' ? 'Size' : 'Width'}</span>
             {annotation.type === 'signature' && (
@@ -234,12 +234,12 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 type="button"
                 onClick={onToggleAspectLock}
                 aria-label={aspectLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-                className="inline-flex items-center gap-0.5 rounded bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 border border-slate-200 cursor-pointer"
+                className="inline-flex items-center gap-0.5 rounded bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-soft border border-line cursor-pointer"
               >
                 {aspectLocked ? (
-                  <Lock className="h-2.5 w-2.5 text-teal-600" aria-hidden="true" />
+                  <Lock className="h-2.5 w-2.5 text-accent" aria-hidden="true" />
                 ) : (
-                  <Unlock className="h-2.5 w-2.5 text-amber-600" aria-hidden="true" />
+                  <Unlock className="h-2.5 w-2.5 text-warning" aria-hidden="true" />
                 )}
                 <span>{aspectLocked ? 'Lock' : 'Free'}</span>
               </button>
@@ -250,18 +250,18 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
               type="button"
               aria-label="Decrease overlay width"
               onClick={() => nudgeSize(-0.06)}
-              className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="flex h-6 w-6 items-center justify-center rounded border border-line bg-surface text-ink-soft hover:bg-surface-muted cursor-pointer"
             >
               <Minus className="h-3 w-3" aria-hidden="true" />
             </button>
-            <span className="min-w-[34px] text-center font-mono-tabular font-semibold text-slate-900">
+            <span className="min-w-[34px] text-center font-mono-tabular font-semibold text-ink">
               {widthPct}%
             </span>
             <button
               type="button"
               aria-label="Increase overlay width"
               onClick={() => nudgeSize(0.06)}
-              className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="flex h-6 w-6 items-center justify-center rounded border border-line bg-surface text-ink-soft hover:bg-surface-muted cursor-pointer"
             >
               <Plus className="h-3 w-3" aria-hidden="true" />
             </button>
@@ -293,7 +293,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
         <div className={aspectLocked ? '' : 'grid grid-cols-2 gap-2.5'}>
           {!aspectLocked && (
             <div>
-              <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+              <div className="mb-1 flex justify-between text-[11px] text-ink-muted">
                 <span>Height</span>
                 <span className="font-mono-tabular">{heightPct}%</span>
               </div>
@@ -315,7 +315,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
             </div>
           )}
           <div>
-            <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+            <div className="mb-1 flex justify-between text-[11px] text-ink-muted">
               <span>Opacity</span>
               <span className="font-mono-tabular">{opacityPct}%</span>
             </div>
@@ -336,7 +336,7 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
       {(annotation.type === 'redaction' || annotation.type === 'shape') && (
         <div className="flex flex-col gap-2">
           <div>
-            <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+            <div className="mb-1 flex justify-between text-[11px] text-ink-muted">
               <span>Height</span>
               <span className="font-mono-tabular">{heightPct}%</span>
             </div>
@@ -363,8 +363,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 onClick={() => onUpdate({ color: '#09090b' })}
                 className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
                   (annotation.color || '#09090b') === '#09090b'
-                    ? 'border-slate-900 bg-slate-900 text-white dark:border-teal-500 dark:bg-teal-600 dark:text-white'
-                    : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    ? 'border-slate-900 bg-slate-900 text-white dark:border-teal-500 dark:bg-accent dark:text-white'
+                    : 'border-line bg-surface text-ink-soft dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                 }`}
               >
                 Blackout
@@ -374,8 +374,8 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
                 onClick={() => onUpdate({ color: '#ffffff' })}
                 className={`rounded-lg border py-1.5 text-[11px] font-semibold cursor-pointer ${
                   annotation.color === '#ffffff'
-                    ? 'border-teal-600 bg-teal-50 text-teal-900 dark:border-teal-400 dark:bg-teal-500/20 dark:text-teal-200'
-                    : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    ? 'border-accent bg-accent-soft text-accent-text dark:border-teal-400 dark:bg-teal-500/20 dark:text-teal-200'
+                    : 'border-line bg-surface text-ink-soft dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                 }`}
               >
                 White-Out
@@ -387,3 +387,4 @@ export const OverlayPropertiesBar: React.FC<OverlayPropertiesBarProps> = ({
     </div>
   );
 };
+

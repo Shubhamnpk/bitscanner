@@ -189,7 +189,7 @@ export async function exportDocumentAsPdf(
       pdf.setFontSize(8);
       pdf.setTextColor(120, 130, 145);
       pdf.text(
-        `${doc.title} — Page ${i + 1} of ${selectedPages.length}`,
+        `${doc.title} · Page ${i + 1} of ${selectedPages.length}`,
         pageW / 2,
         pageH - 4,
         { align: 'center' }
@@ -204,7 +204,7 @@ export async function exportDocumentAsPdf(
 }
 
 /**
- * Exports selected pages as PNG or JPEG — either individual page files or a single stitched long image.
+ * Exports selected pages as PNG or JPEG - either individual page files or a single stitched long image.
  */
 export async function exportPagesAsImages(
   doc: ScanDocument,

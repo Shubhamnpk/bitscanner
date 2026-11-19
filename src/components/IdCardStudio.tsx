@@ -127,7 +127,7 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
       { x: 0.01, y: 0.99 },
     ];
     setBack({ originalUrl: backUrl, quad: backQuad, dewarpedUrl: backUrl });
-    setSheetTitle('Aethel Citizen ID — Evelyn Thorne (2-Up)');
+    setSheetTitle('Aethel Citizen ID · Evelyn Thorne (2-Up)');
   };
 
   const applySideCrop = async (side: 'front' | 'back') => {
@@ -203,10 +203,10 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
     <div className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col px-4 py-5 pb-24 md:p-6 md:pb-8 lg:p-8">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
             ID Card &amp; Passport 2-Up Maker
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-slate-500">
+          <p className="mt-1 text-xs sm:text-sm text-ink-muted">
             Scan Front &amp; Back sides, auto-dewarp perspective, and align onto a single printable A4 sheet.
           </p>
         </div>
@@ -215,15 +215,15 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
           <button
             type="button"
             onClick={handleLoadSampleIdPair}
-            className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition-transform cursor-pointer"
+            className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-xs sm:text-sm font-medium text-ink-soft hover:bg-surface-muted active:scale-[0.98] transition-transform cursor-pointer"
           >
-            <Sparkles className="h-4 w-4 text-teal-600" aria-hidden="true" />
+            <Sparkles className="h-4 w-4 text-accent" aria-hidden="true" />
             <span>Load Sample ID (Front &amp; Back)</span>
           </button>
           <button
             type="button"
             onClick={onBackToLibrary}
-            className="hidden md:inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="hidden md:inline-flex items-center rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
           >
             Back to Library
           </button>
@@ -232,23 +232,23 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
 
       {/* Perspective Crop Editor when refining Front or Back */}
       {croppingSide && activeCropState ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-6">
+        <div className="rounded-xl border border-line bg-surface p-6">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900">
+            <h2 className="text-base font-bold text-ink">
               Adjust {croppingSide === 'front' ? 'Front Side' : 'Back Side'} Perspective Corners
             </h2>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCroppingSide(null)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={() => applySideCrop(croppingSide)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-1.5 text-sm font-semibold text-white hover:bg-accent-strong cursor-pointer"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 <span>Apply Crop</span>
@@ -286,21 +286,21 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
               return (
                 <div
                   key={side}
-                  className="rounded-xl border border-slate-200 bg-white p-4"
+                  className="rounded-xl border border-line bg-surface p-4"
                 >
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-900">{title}</span>
+                    <span className="text-sm font-semibold text-ink">{title}</span>
                     {state && (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setCroppingSide(side)}
-                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-50 cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-accent-strong hover:bg-accent-soft cursor-pointer"
                         >
                           <Crop className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Adjust Corners</span>
                         </button>
-                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer">
+                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-ink-muted hover:bg-surface-subtle cursor-pointer">
                           <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Replace</span>
                           <input
@@ -315,21 +315,21 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                   </div>
 
                   {state ? (
-                    <div className="flex items-center justify-center rounded-lg bg-slate-100 p-2">
+                    <div className="flex items-center justify-center rounded-lg bg-surface-subtle p-2">
                       <img
                         src={state.dewarpedUrl}
                         alt={`ID ${side} side`}
                         referrerPolicy="no-referrer"
-                        className="max-h-28 rounded border border-slate-200 object-contain shadow-xs"
+                        className="max-h-28 rounded border border-line object-contain shadow-xs"
                       />
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 py-6 text-center hover:border-teal-500 hover:bg-teal-50/30 transition-colors cursor-pointer">
-                      <Upload className="h-6 w-6 text-slate-400 mb-2" aria-hidden="true" />
-                      <span className="text-sm font-medium text-slate-700">
+                    <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-line-strong bg-surface-muted py-6 text-center hover:border-teal-500 hover:bg-accent-soft/30 transition-colors cursor-pointer">
+                      <Upload className="h-6 w-6 text-ink-faint mb-2" aria-hidden="true" />
+                      <span className="text-sm font-medium text-ink-soft">
                         Upload {side === 'front' ? 'Front' : 'Back'} Photo
                       </span>
-                      <span className="mt-0.5 text-xs text-slate-500">
+                      <span className="mt-0.5 text-xs text-ink-muted">
                         Auto-crops &amp; flattens ID perspective
                       </span>
                       <input
@@ -345,9 +345,9 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
             })}
 
             {/* Sheet Formatting Controls */}
-            <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-col gap-4">
+            <div className="rounded-xl border border-line bg-surface p-4 flex flex-col gap-4">
               <div>
-                <label htmlFor="id-sheet-title" className="block text-xs font-medium text-slate-600 mb-1">
+                <label htmlFor="id-sheet-title" className="block text-xs font-medium text-ink-muted mb-1">
                   Document Title
                 </label>
                 <input
@@ -355,14 +355,14 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                   type="text"
                   value={sheetTitle}
                   onChange={(e) => setSheetTitle(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                  className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between text-xs font-medium text-slate-600 mb-1.5">
+                <div className="flex items-center justify-between text-xs font-medium text-ink-muted mb-1.5">
                   <span>Card Print Size</span>
-                  <span className="font-mono-tabular text-slate-900">{Math.round(cardScale * 100)}%</span>
+                  <span className="font-mono-tabular text-ink">{Math.round(cardScale * 100)}%</span>
                 </div>
                 <input
                   type="range"
@@ -376,9 +376,9 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                 />
               </div>
 
-              <label className="flex items-center justify-between gap-2 text-sm text-slate-700 cursor-pointer">
+              <label className="flex items-center justify-between gap-2 text-sm text-ink-soft cursor-pointer">
                 <span className="flex items-center gap-2">
-                  <Scissors className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                  <Scissors className="h-4 w-4 text-ink-faint" aria-hidden="true" />
                   <span>Show Dashed Cut Guide</span>
                 </span>
                 <input
@@ -389,8 +389,8 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                 />
               </label>
 
-              <div className="flex flex-col gap-2 border-t border-slate-100 pt-3">
-                <label className="flex items-center justify-between gap-2 text-sm text-slate-700 cursor-pointer">
+              <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+                <label className="flex items-center justify-between gap-2 text-sm text-ink-soft cursor-pointer">
                   <span>Security Copy Watermark</span>
                   <input
                     type="checkbox"
@@ -405,7 +405,7 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                     value={watermarkText}
                     onChange={(e) => setWatermarkText(e.target.value)}
                     aria-label="Security watermark text"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                    className="w-full rounded-lg border border-line px-3 py-1.5 text-sm text-ink focus:border-accent focus:outline-none"
                   />
                 )}
               </div>
@@ -413,9 +413,9 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
           </div>
 
           {/* Right Column: Live A4 2-Up Preview */}
-          <div className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden lg:col-span-7">
-            <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 px-4 sm:px-5 py-3.5">
-              <span className="text-sm font-semibold text-slate-900">
+          <div className="flex flex-col rounded-xl border border-line bg-surface overflow-hidden lg:col-span-7">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-line px-4 sm:px-5 py-3.5">
+              <span className="text-sm font-semibold text-ink">
                 A4 2-Up Print Preview {composing ? '(Updating...)' : ''}
               </span>
 
@@ -424,7 +424,7 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                   type="button"
                   disabled={!composedUrl}
                   onClick={handleDownloadPdf}
-                  className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl sm:rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-45 cursor-pointer"
+                  className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl sm:rounded-lg border border-line bg-surface px-3.5 py-2 text-xs sm:text-sm font-medium text-ink-soft hover:bg-surface-muted disabled:opacity-45 cursor-pointer"
                 >
                   <Download className="h-4 w-4" aria-hidden="true" />
                   <span>Download PDF</span>
@@ -433,7 +433,7 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                   type="button"
                   disabled={!composedUrl}
                   onClick={handleSave}
-                  className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl sm:rounded-lg bg-teal-600 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-45 cursor-pointer"
+                  className="inline-flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl sm:rounded-lg bg-accent px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-accent-strong disabled:opacity-45 cursor-pointer"
                 >
                   <Check className="h-4 w-4" aria-hidden="true" />
                   <span>Save to Library</span>
@@ -447,15 +447,15 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
                   src={composedUrl}
                   alt="A4 2-up composited ID card sheet"
                   referrerPolicy="no-referrer"
-                  className="max-h-[440px] sm:max-h-[600px] w-full sm:w-auto object-contain rounded shadow-2xl bg-white"
+                  className="max-h-[440px] sm:max-h-[600px] w-full sm:w-auto object-contain rounded shadow-2xl bg-surface"
                 />
               ) : (
-                <div className="flex flex-col items-center text-center text-slate-400 max-w-xs">
-                  <CreditCard className="h-10 w-10 mb-3 text-slate-500" aria-hidden="true" />
+                <div className="flex flex-col items-center text-center text-ink-faint max-w-xs">
+                  <CreditCard className="h-10 w-10 mb-3 text-ink-muted" aria-hidden="true" />
                   <p className="text-sm font-medium text-slate-200">
                     Upload both Front &amp; Back sides to preview your A4 ID sheet
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs text-ink-faint">
                     Or click &ldquo;Load Sample ID (Front &amp; Back)&rdquo; above to test immediately.
                   </p>
                 </div>
@@ -467,3 +467,4 @@ export const IdCardStudio: React.FC<IdCardStudioProps> = ({
     </div>
   );
 };
+

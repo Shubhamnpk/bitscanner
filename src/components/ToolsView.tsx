@@ -250,7 +250,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
         await generatePassportOutputs(srcUrl, preset, ppSheet, ppBg, zoom, offsetY);
         haptics.success();
       } else {
-        // No face found — just regenerate with current settings
+        // No face found - just regenerate with current settings
         await generatePassportOutputs(srcUrl, preset, ppSheet, ppBg, ppZoom, ppOffsetY);
       }
     } finally {
@@ -275,7 +275,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
       <article
         key={tool.id}
         data-testid={`tool-card-${tool.id}`}
-        className="group relative flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 transition-all hover:border-teal-500/60 hover:shadow-sm"
+        className="group relative flex flex-col justify-between rounded-2xl border border-line bg-surface p-4 transition-all hover:border-teal-500/60 hover:shadow-sm"
       >
         <button
           type="button"
@@ -289,10 +289,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
           </div>
-          <h3 className="mt-3 text-sm font-bold text-slate-900 group-hover:text-teal-700">
+          <h3 className="mt-3 text-sm font-bold text-ink group-hover:text-accent-strong">
             {tool.title}
           </h3>
-          <p className="mt-1 text-xs leading-relaxed text-slate-500 line-clamp-2">
+          <p className="mt-1 text-xs leading-relaxed text-ink-muted line-clamp-2">
             {tool.description}
           </p>
         </button>
@@ -307,7 +307,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           data-testid={`tool-fav-${tool.id}`}
           aria-label={isFav ? `Unfavorite ${tool.title}` : `Favorite ${tool.title}`}
           aria-pressed={isFav}
-          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-amber-500 cursor-pointer"
+          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl text-ink-faint hover:bg-surface-subtle hover:text-amber-500 cursor-pointer"
         >
           <Star
             className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`}
@@ -326,7 +326,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
       <div
         key={tool.id}
         data-testid={`tool-mobile-row-${tool.id}`}
-        className="flex min-h-[68px] items-center gap-2 px-3 py-2.5 transition-colors active:bg-slate-50"
+        className="flex min-h-[68px] items-center gap-2 px-3 py-2.5 transition-colors active:bg-surface-muted"
       >
         <button
           type="button"
@@ -339,8 +339,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
             <Icon className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-slate-900">{tool.title}</div>
-            <div className="truncate text-xs text-slate-500">{tool.description}</div>
+            <div className="truncate text-sm font-bold text-ink">{tool.title}</div>
+            <div className="truncate text-xs text-ink-muted">{tool.description}</div>
           </div>
         </button>
 
@@ -353,7 +353,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           data-testid={`tool-mobile-fav-${tool.id}`}
           aria-label={isFav ? `Unfavorite ${tool.title}` : `Favorite ${tool.title}`}
           aria-pressed={isFav}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 active:scale-95 cursor-pointer"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-ink-faint hover:bg-surface-subtle active:scale-95 cursor-pointer"
         >
           <Star
             className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-500' : ''}`}
@@ -365,7 +365,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           type="button"
           onClick={() => openTool(tool.id)}
           aria-label={`Open ${tool.title}`}
-          className="flex h-11 w-7 shrink-0 items-center justify-center text-slate-400 cursor-pointer"
+          className="flex h-11 w-7 shrink-0 items-center justify-center text-ink-faint cursor-pointer"
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -504,10 +504,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink">
                 Document Tools
               </h1>
-              <p className="mt-0.5 text-xs sm:text-sm text-slate-500">
+              <p className="mt-0.5 text-xs sm:text-sm text-ink-muted">
                 Fast on-device converters, ID makers, OCR, signatures &amp; slideshows.
               </p>
             </div>
@@ -515,7 +515,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
             <button
               type="button"
               onClick={onBackToLibrary}
-              className="hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="hidden sm:inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Back to Docs</span>
@@ -526,7 +526,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative w-full sm:max-w-xs">
               <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
                 aria-hidden="true"
               />
               <input
@@ -536,14 +536,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 placeholder="Find PDF, ID, OCR, video..."
                 aria-label="Search tools"
                 data-testid="tools-search-input"
-                className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none"
+                className="min-h-[44px] w-full rounded-xl border border-line bg-surface pl-9 pr-9 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
                   aria-label="Clear tool search"
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint hover:bg-surface-subtle cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
@@ -568,8 +568,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   }}
                   className={`min-h-[40px] rounded-xl px-3.5 text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-all active:scale-95 ${
                     categoryFilter === cat.id
-                      ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white dark:shadow-sm'
-                      : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
+                      ? 'bg-slate-900 text-white dark:bg-accent dark:text-white dark:shadow-sm'
+                      : 'border border-line bg-surface text-ink-muted hover:bg-surface-muted dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                   }`}
                 >
                   {cat.label}
@@ -582,10 +582,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {pinnedTools.length > 0 && categoryFilter === 'all' && !searchQuery.trim() && (
             <section aria-label="Pinned tools" className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                <h2 className="text-[11px] font-bold uppercase tracking-wider text-ink-muted">
                   Pinned Quick Access
                 </h2>
-                <span className="text-[11px] font-medium text-slate-400">
+                <span className="text-[11px] font-medium text-ink-faint">
                   Tap star to pin/unpin
                 </span>
               </div>
@@ -597,14 +597,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       key={tool.id}
                       type="button"
                       onClick={() => openTool(tool.id)}
-                      className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 active:scale-[0.98] transition-all cursor-pointer"
+                      className="flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-left hover:border-teal-500 active:scale-[0.98] transition-all cursor-pointer"
                     >
                       <span
                         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${tool.accentClass}`}
                       >
                         <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
-                      <span className="text-xs font-semibold text-slate-800 whitespace-nowrap">
+                      <span className="text-xs font-semibold text-ink-strong whitespace-nowrap">
                         {tool.shortLabel}
                       </span>
                     </button>
@@ -615,16 +615,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           )}
 
           {filteredTools.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center px-4">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-line-strong bg-surface py-12 text-center px-4">
               <Search className="h-8 w-8 text-slate-300 mb-2" aria-hidden="true" />
-              <p className="text-sm font-semibold text-slate-700">No matching tools</p>
+              <p className="text-sm font-semibold text-ink-soft">No matching tools</p>
               <button
                 type="button"
                 onClick={() => {
                   setSearchQuery('');
                   setCategoryFilter('all');
                 }}
-                className="mt-2 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                className="mt-2 text-xs font-semibold text-accent-strong hover:underline cursor-pointer"
               >
                 Show all tools
               </button>
@@ -634,7 +634,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
               {/* Native Mobile Compact Action List */}
               <div
                 data-testid="tools-mobile-list"
-                className="flex flex-col divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white sm:hidden"
+                className="flex flex-col divide-y divide-line-soft overflow-hidden rounded-2xl border border-line bg-surface sm:hidden"
               >
                 {filteredTools.map(renderMobileToolRow)}
               </div>
@@ -649,7 +649,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
       ) : (
         /* FOCUSED TOOL WORKSPACE */
         <div className="flex flex-col gap-5">
-          <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3.5">
+          <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
             <div className="flex items-center gap-2.5 min-w-0">
               <button
                 type="button"
@@ -658,12 +658,12 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   setActiveTool(null);
                 }}
                 data-testid="tools-back-hub-btn"
-                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 <span>All Tools</span>
               </button>
-              <h1 className="truncate text-base sm:text-lg font-bold text-slate-900">
+              <h1 className="truncate text-base sm:text-lg font-bold text-ink">
                 {TOOLS_CATALOG.find((t) => t.id === activeTool)?.title}
               </h1>
             </div>
@@ -675,11 +675,11 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 onToggleFavoriteTool(activeTool);
               }}
               aria-label="Toggle favorite tool"
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
             >
               <Star
                 className={`h-4 w-4 ${
-                  favoriteTools.includes(activeTool) ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
+                  favoriteTools.includes(activeTool) ? 'fill-amber-400 text-amber-500' : 'text-ink-faint'
                 }`}
                 aria-hidden="true"
               />
@@ -692,16 +692,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {/* TOOL 1: IMAGES -> PDF */}
           {activeTool === 'images_to_pdf' && (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-sm font-bold text-ink">
                     Selected Images ({imgPdfList.length})
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => imgPdfInputRef.current?.click()}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-semibold text-white hover:bg-accent-strong cursor-pointer"
                     >
                       <ImagePlus className="h-4 w-4" aria-hidden="true" />
                       <span>Upload Images</span>
@@ -709,7 +709,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setProjectPickerTarget('images_to_pdf')}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
                     >
                       <Plus className="h-4 w-4" aria-hidden="true" />
                       <span>From Library</span>
@@ -718,10 +718,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 </div>
 
                 {imgPdfList.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-14 text-center px-4">
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-14 text-center px-4">
                     <FilePlus2 className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-slate-700">No images added yet</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="text-sm font-semibold text-ink-soft">No images added yet</p>
+                    <p className="mt-1 text-xs text-ink-muted">
                       Upload photos or pull existing scanned pages from your Library, then drag to reorder.
                     </p>
                   </div>
@@ -742,16 +742,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                           setDragImgIdx(null);
                         }}
                         onDragEnd={() => setDragImgIdx(null)}
-                        className="group relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-1.5 cursor-grab active:cursor-grabbing"
+                        className="group relative flex flex-col overflow-hidden rounded-xl border border-line bg-surface-muted p-1.5 cursor-grab active:cursor-grabbing"
                       >
                         <img
                           src={item.url}
                           alt={item.label}
-                          className="h-32 w-full rounded-lg bg-white object-contain"
+                          className="h-32 w-full rounded-lg bg-surface object-contain"
                         />
                         <div className="mt-1.5 flex items-center justify-between px-1">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-mono-tabular font-semibold text-slate-600">
-                            <GripVertical className="h-3 w-3 text-slate-400" aria-hidden="true" />
+                          <span className="inline-flex items-center gap-1 text-[11px] font-mono-tabular font-semibold text-ink-muted">
+                            <GripVertical className="h-3 w-3 text-ink-faint" aria-hidden="true" />
                             <span>{idx + 1}</span>
                           </span>
                           <button
@@ -760,7 +760,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                               setImgPdfList((prev) => prev.filter((x) => x.id !== item.id))
                             }
                             aria-label={`Remove image ${idx + 1}`}
-                            className="rounded p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                            className="rounded p-1 text-ink-faint hover:text-danger cursor-pointer"
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
@@ -771,19 +771,19 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                <h2 className="text-sm font-bold text-slate-900">PDF Output Options</h2>
+              <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+                <h2 className="text-sm font-bold text-ink">PDF Output Options</h2>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">File Name</label>
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">File Name</label>
                   <input
                     type="text"
                     value={imgPdfName}
                     onChange={(e) => setImgPdfName(e.target.value)}
-                    className="w-full min-h-[42px] rounded-xl border border-slate-200 px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                    className="w-full min-h-[42px] rounded-xl border border-line px-3 text-sm text-ink focus:border-accent focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Paper Size</label>
+                  <label className="mb-1 block text-xs font-medium text-ink-muted">Paper Size</label>
                   <div className="grid grid-cols-3 gap-1.5">
                     {(['a4', 'letter', 'fit'] as const).map((sz) => (
                       <button
@@ -792,8 +792,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         onClick={() => setImgPdfPaper(sz)}
                         className={`min-h-[40px] rounded-xl border text-xs font-semibold uppercase cursor-pointer ${
                           imgPdfPaper === sz
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 text-slate-700'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line text-ink-soft'
                         }`}
                       >
                         {sz}
@@ -816,7 +816,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       setImgPdfBusy(false);
                     }
                   }}
-                  className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 cursor-pointer"
                 >
                   {imgPdfBusy ? (
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -834,7 +834,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       imgPdfList.map((i) => i.url)
                     )
                   }
-                  className="inline-flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex min-h-[42px] w-full items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-xs font-semibold text-ink-soft hover:bg-surface-muted disabled:opacity-50 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span>Save as New Scan Project</span>
@@ -845,14 +845,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
 
           {/* TOOL 2: PDF -> IMAGES */}
           {activeTool === 'pdf_to_images' && (
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+            <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => pdfToImgInputRef.current?.click()}
                     disabled={pdfToImgBusy}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 cursor-pointer"
                   >
                     {pdfToImgBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -862,7 +862,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     <span>{pdfToImgBusy ? pdfToImgProgress || 'Converting...' : 'Choose PDF File'}</span>
                   </button>
 
-                  <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800/80 p-0.5">
+                  <div className="flex items-center rounded-xl border border-line dark:border-slate-700 dark:bg-slate-800/80 p-0.5">
                     {(['png', 'jpeg'] as const).map((fmt) => (
                       <button
                         key={fmt}
@@ -870,8 +870,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         onClick={() => setPdfToImgFormat(fmt)}
                         className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase cursor-pointer transition-colors ${
                           pdfToImgFormat === fmt
-                            ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
-                            : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                            ? 'bg-slate-900 text-white dark:bg-accent dark:text-white'
+                            : 'text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
                         }`}
                       >
                         {fmt}
@@ -889,7 +889,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         pdfToImgPages.map((p) => p.dataUrl)
                       )
                     }
-                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-teal-600 bg-teal-50 px-3.5 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-accent bg-accent-soft px-3.5 text-xs font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
                   >
                     <Plus className="h-4 w-4" aria-hidden="true" />
                     <span>Import {pdfToImgPages.length} Pages to Library</span>
@@ -898,12 +898,12 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
               </div>
 
               {pdfToImgPages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-14 text-center px-4">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-14 text-center px-4">
                   <FileImage className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                  <p className="text-sm font-semibold text-slate-700">
+                  <p className="text-sm font-semibold text-ink-soft">
                     Upload any PDF to render crisp high-res images
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-ink-muted">
                     Download individual pages or import them directly into bitscanner for editing &amp; OCR.
                   </p>
                 </div>
@@ -912,15 +912,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   {pdfToImgPages.map((pg) => (
                     <div
                       key={pg.pageNumber}
-                      className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2"
+                      className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface-muted p-2"
                     >
                       <img
                         src={pg.dataUrl}
                         alt={`Page ${pg.pageNumber}`}
-                        className="h-44 w-full rounded-lg bg-white object-contain"
+                        className="h-44 w-full rounded-lg bg-surface object-contain"
                       />
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="font-mono-tabular text-xs font-semibold text-slate-600">
+                        <span className="font-mono-tabular text-xs font-semibold text-ink-muted">
                           Page {pg.pageNumber}
                         </span>
                         <button
@@ -931,7 +931,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                               `${pdfToImgName}_p${pg.pageNumber}.${pdfToImgFormat === 'jpeg' ? 'jpg' : 'png'}`
                             )
                           }
-                          className="inline-flex items-center gap-1 rounded-lg bg-white border border-slate-200 px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                          className="inline-flex items-center gap-1 rounded-lg bg-surface border border-line px-2.5 py-1 text-xs font-semibold text-accent-strong hover:bg-accent-soft cursor-pointer"
                         >
                           <Download className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Save</span>
@@ -948,17 +948,17 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {activeTool === 'pp_size' && (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
               {/* Preview Panel */}
-              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Cut-Ready Passport Print Sheet</h2>
-                    {ppSheetInfo && <p className="text-xs text-slate-500">{ppSheetInfo}</p>}
+                    <h2 className="text-sm font-bold text-ink">Cut-Ready Passport Print Sheet</h2>
+                    {ppSheetInfo && <p className="text-xs text-ink-muted">{ppSheetInfo}</p>}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => ppInputRef.current?.click()}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-semibold text-white hover:bg-accent-strong cursor-pointer"
                     >
                       <Upload className="h-4 w-4" aria-hidden="true" />
                       <span>Upload Portrait</span>
@@ -966,7 +966,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setProjectPickerTarget('pp_size')}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
                     >
                       <span>From Library</span>
                     </button>
@@ -975,7 +975,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         type="button"
                         disabled={ppFaceDetecting || ppBusy}
                         onClick={() => handleAutoFrameFace(ppSourceUrl, ppPreset)}
-                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-700 hover:bg-teal-100 disabled:opacity-50 cursor-pointer"
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent-strong hover:bg-accent-soft disabled:opacity-50 cursor-pointer"
                       >
                         {ppFaceDetecting ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -992,26 +992,26 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 {ppFaceResult !== null && (
                   <div className="flex items-center">
                     {ppFaceResult.faceBox && ppFaceResult.confidence >= 0.4 ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-success-soft border border-success-line px-2.5 py-1 text-[11px] font-semibold text-success">
                         <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                        Face detected — auto-framed to ICAO passport standards
+                        Face detected · auto-framed to ICAO passport standards
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-warning-soft border border-warning-line px-2.5 py-1 text-[11px] font-semibold text-warning">
                         <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                        No face found — adjust zoom &amp; position manually
+                        No face found · adjust zoom &amp; position manually
                       </span>
                     )}
                   </div>
                 )}
 
                 {!ppPreviewSheet ? (
-                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-16 text-center px-4">
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-16 text-center px-4">
                     <Camera className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-ink-soft">
                       Upload a portrait photo to create standard PP-size copies
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-ink-muted">
                       Face is detected automatically and framed to ICAO passport photo standards.
                       Supports 35×45mm, 2×2in US Passport, 33×48mm Visa, and 4×6 or A4 cut-guide sheets.
                     </p>
@@ -1019,14 +1019,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 ) : (
                   <div className="flex flex-col gap-4 sm:flex-row items-start">
                     {/* Single tile preview with face guide overlay */}
-                    <div className="w-36 shrink-0 rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
+                    <div className="w-36 shrink-0 rounded-xl border border-line bg-surface-muted p-2 text-center">
                       <div className="relative">
                         <img
                           src={ppPreviewTile}
                           alt="Single passport tile"
-                          className="w-full rounded-lg border border-slate-200 object-contain"
+                          className="w-full rounded-lg border border-line object-contain"
                         />
-                        {/* ICAO face guide overlay — dashed oval showing expected face zone */}
+                        {/* ICAO face guide overlay - dashed oval showing expected face zone */}
                         {ppFaceResult?.faceBox && ppFaceResult.confidence >= 0.4 && (
                           <svg
                             className="pointer-events-none absolute inset-0 h-full w-full"
@@ -1049,15 +1049,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                           </svg>
                         )}
                       </div>
-                      <span className="mt-1.5 block text-[11px] font-medium text-slate-600">
+                      <span className="mt-1.5 block text-[11px] font-medium text-ink-muted">
                         Single Tile
                       </span>
                     </div>
-                    <div className="flex-1 rounded-xl border border-slate-200 bg-slate-100 p-3">
+                    <div className="flex-1 rounded-xl border border-line bg-surface-subtle p-3">
                       <img
                         src={ppPreviewSheet}
                         alt="Passport print sheet"
-                        className="max-h-[420px] w-full rounded-lg bg-white object-contain shadow-xs"
+                        className="max-h-[420px] w-full rounded-lg bg-surface object-contain shadow-xs"
                       />
                     </div>
                   </div>
@@ -1065,11 +1065,11 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
               </div>
 
               {/* Settings Panel */}
-              <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                <h2 className="text-sm font-bold text-slate-900">Photo &amp; Sheet Setup</h2>
+              <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+                <h2 className="text-sm font-bold text-ink">Photo &amp; Sheet Setup</h2>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-600">Photo Standard</label>
+                  <label className="mb-1.5 block text-xs font-medium text-ink-muted">Photo Standard</label>
                   <div className="grid grid-cols-2 gap-1.5">
                     {PASSPORT_PRESETS.map((p) => (
                       <button
@@ -1081,19 +1081,19 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         }}
                         className={`rounded-xl border p-2 text-left cursor-pointer ${
                           ppPreset === p.id
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 text-slate-700'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line text-ink-soft'
                         }`}
                       >
                         <div className="text-xs font-bold">{p.label}</div>
-                        <div className="text-[10px] text-slate-500">{p.subtitle}</div>
+                        <div className="text-[10px] text-ink-muted">{p.subtitle}</div>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-600">Print Sheet Size</label>
+                  <label className="mb-1.5 block text-xs font-medium text-ink-muted">Print Sheet Size</label>
                   <div className="grid grid-cols-2 gap-1.5">
                     {(['4x6in', 'a4'] as const).map((sid) => (
                       <button
@@ -1105,8 +1105,8 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         }}
                         className={`min-h-[40px] rounded-xl border text-xs font-semibold cursor-pointer ${
                           ppSheet === sid
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 text-slate-700'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line text-ink-soft'
                         }`}
                       >
                         {SHEET_DIMENSIONS_MM[sid].label}
@@ -1116,7 +1116,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-600">Background</label>
+                  <label className="mb-1.5 block text-xs font-medium text-ink-muted">Background</label>
                   <div className="flex items-center gap-2">
                     {[
                       { id: '#ffffff', label: 'White' },
@@ -1131,10 +1131,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                           if (ppSourceUrl) generatePassportOutputs(ppSourceUrl, ppPreset, ppSheet, b.id, ppZoom, ppOffsetY);
                         }}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium cursor-pointer ${
-                          ppBg === b.id ? 'border-teal-600 bg-teal-50' : 'border-slate-200'
+                          ppBg === b.id ? 'border-accent bg-accent-soft' : 'border-line'
                         }`}
                       >
-                        <span className="h-3 w-3 rounded-sm border border-slate-300" style={{ backgroundColor: b.id }} />
+                        <span className="h-3 w-3 rounded-sm border border-line-strong" style={{ backgroundColor: b.id }} />
                         <span>{b.label}</span>
                       </button>
                     ))}
@@ -1142,7 +1142,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 </div>
 
                 <div>
-                  <div className="mb-1 flex justify-between text-xs text-slate-600">
+                  <div className="mb-1 flex justify-between text-xs text-ink-muted">
                     <span>Zoom Crop</span>
                     <span className="font-mono-tabular">{ppZoom.toFixed(2)}×</span>
                   </div>
@@ -1164,7 +1164,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 </div>
 
                 <div>
-                  <div className="mb-1 flex justify-between text-xs text-slate-600">
+                  <div className="mb-1 flex justify-between text-xs text-ink-muted">
                     <span>Vertical Head Position</span>
                     <span className="font-mono-tabular">{Math.round(ppOffsetY * 100)}%</span>
                   </div>
@@ -1190,7 +1190,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     type="button"
                     disabled={!ppPreviewSheet || ppBusy}
                     onClick={() => handleDownloadDataUrl(ppPreviewSheet, `passport_sheet_${ppPreset}.jpg`)}
-                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 cursor-pointer"
                   >
                     <Download className="h-4 w-4" aria-hidden="true" />
                     <span>Download Print Sheet</span>
@@ -1199,7 +1199,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     type="button"
                     disabled={!ppPreviewTile || ppBusy}
                     onClick={() => handleDownloadDataUrl(ppPreviewTile, `passport_single_${ppPreset}.png`)}
-                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-xs font-semibold text-ink-soft hover:bg-surface-muted disabled:opacity-50 cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Download Single Photo PNG</span>
@@ -1211,12 +1211,12 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
 
           {/* TOOL 4: MERGE PDFS */}
           {activeTool === 'merge_pdf' && (
-            <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+            <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
                   onClick={() => mergePdfInputRef.current?.click()}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong cursor-pointer"
                 >
                   <Upload className="h-4 w-4" aria-hidden="true" />
                   <span>Add PDF Files</span>
@@ -1227,7 +1227,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     value={mergeFilename}
                     onChange={(e) => setMergeFilename(e.target.value)}
                     aria-label="Merged PDF filename"
-                    className="min-h-[40px] rounded-xl border border-slate-200 px-3 text-xs font-medium text-slate-900"
+                    className="min-h-[40px] rounded-xl border border-line px-3 text-xs font-medium text-ink"
                   />
                   <button
                     type="button"
@@ -1246,7 +1246,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         setMergeStatus('');
                       }
                     }}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 disabled:opacity-50 cursor-pointer transition-colors"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-slate-900 px-4 text-xs font-bold text-white hover:bg-slate-800 dark:bg-accent dark:hover:bg-accent-strong disabled:opacity-50 cursor-pointer transition-colors"
                   >
                     {mergeBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -1259,10 +1259,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
               </div>
 
               {mergeFiles.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-14 text-center px-4">
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-14 text-center px-4">
                   <Layers className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                  <p className="text-sm font-semibold text-slate-700">Select 2 or more PDFs to merge</p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="text-sm font-semibold text-ink-soft">Select 2 or more PDFs to merge</p>
+                  <p className="mt-1 text-xs text-ink-muted">
                     Drag items in the queue below to set exact page order before merging.
                   </p>
                 </div>
@@ -1283,14 +1283,14 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                         setDragPdfIdx(null);
                       }}
                       onDragEnd={() => setDragPdfIdx(null)}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 cursor-grab active:cursor-grabbing"
+                      className="flex items-center justify-between rounded-xl border border-line bg-surface-muted px-3 py-2.5 cursor-grab active:cursor-grabbing"
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <GripVertical className="h-4 w-4 text-slate-400 shrink-0" aria-hidden="true" />
-                        <span className="font-mono-tabular text-xs font-bold text-slate-500">
+                        <GripVertical className="h-4 w-4 text-ink-faint shrink-0" aria-hidden="true" />
+                        <span className="font-mono-tabular text-xs font-bold text-ink-muted">
                           {idx + 1}.
                         </span>
-                        <span className="truncate text-sm font-medium text-slate-900">
+                        <span className="truncate text-sm font-medium text-ink">
                           {item.file.name}
                         </span>
                       </div>
@@ -1300,7 +1300,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                           setMergeFiles((prev) => prev.filter((x) => x.id !== item.id))
                         }
                         aria-label={`Remove ${item.file.name}`}
-                        className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                        className="rounded-lg p-1.5 text-ink-faint hover:text-danger cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </button>
@@ -1314,13 +1314,13 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {/* TOOL 5: OCR EXTRACT */}
           {activeTool === 'ocr_extract' && (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 sm:p-5">
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => ocrInputRef.current?.click()}
                     disabled={ocrBusy}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 cursor-pointer"
                   >
                     <Upload className="h-4 w-4" aria-hidden="true" />
                     <span>Upload Image</span>
@@ -1328,7 +1328,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setProjectPickerTarget('ocr_extract')}
-                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                    className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
                   >
                     <span>From Library</span>
                   </button>
@@ -1338,21 +1338,21 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   <img
                     src={ocrSrcUrl}
                     alt="OCR source preview"
-                    className="max-h-[420px] w-full rounded-xl border border-slate-200 bg-slate-50 object-contain p-2"
+                    className="max-h-[420px] w-full rounded-xl border border-line bg-surface-muted object-contain p-2"
                   />
                 ) : (
-                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-20 text-center px-4">
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-20 text-center px-4">
                     <ScanText className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-ink-soft">
                       Upload a photo or pick a document page to extract text
                     </p>
                   </div>
                 )}
               </div>
 
-              <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 sm:p-5">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-sm font-bold text-ink">
                     {ocrBusy ? `Recognizing Text (${ocrPct}%)...` : 'Recognized Text'}
                   </span>
                   <button
@@ -1363,9 +1363,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       setOcrCopied(true);
                       window.setTimeout(() => setOcrCopied(false), 1500);
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 disabled:opacity-40 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-soft disabled:opacity-40 cursor-pointer"
                   >
-                    {ocrCopied ? <Check className="h-3.5 w-3.5 text-teal-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    {ocrCopied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
                     <span>{ocrCopied ? 'Copied' : 'Copy Text'}</span>
                   </button>
                 </div>
@@ -1373,7 +1373,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   value={ocrText}
                   onChange={(e) => setOcrText(e.target.value)}
                   placeholder="Recognized text will appear here..."
-                  className="min-h-[300px] flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-800 focus:border-teal-600 focus:bg-white focus:outline-none"
+                  className="min-h-[300px] flex-1 resize-none rounded-xl border border-line bg-surface-muted p-3 text-xs leading-relaxed text-ink-strong focus:border-accent focus:bg-surface focus:outline-none"
                 />
               </div>
             </div>
@@ -1382,16 +1382,16 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           {/* TOOL 6: SLIDESHOW VIDEO MAKER */}
           {activeTool === 'images_to_video' && (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+              <div className="lg:col-span-2 flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-bold text-slate-900">
+                  <span className="text-sm font-bold text-ink">
                     Video Slides ({videoImages.length})
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 text-xs font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-semibold text-white hover:bg-accent-strong cursor-pointer"
                     >
                       <ImagePlus className="h-4 w-4" aria-hidden="true" />
                       <span>Upload Photos</span>
@@ -1399,7 +1399,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setProjectPickerTarget('images_to_video')}
-                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
                     >
                       <span>From Library</span>
                     </button>
@@ -1407,9 +1407,9 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 </div>
 
                 {videoImages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 py-14 text-center px-4">
+                  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface-muted py-14 text-center px-4">
                     <Film className="h-9 w-9 text-slate-300 mb-2" aria-hidden="true" />
-                    <p className="text-sm font-semibold text-slate-700">
+                    <p className="text-sm font-semibold text-ink-soft">
                       Add scanned pages or photos to build a slideshow video
                     </p>
                   </div>
@@ -1418,15 +1418,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                     {videoImages.map((item, idx) => (
                       <div
                         key={item.id}
-                        className="relative flex flex-col rounded-xl border border-slate-200 bg-slate-50 p-1.5"
+                        className="relative flex flex-col rounded-xl border border-line bg-surface-muted p-1.5"
                       >
                         <img
                           src={item.url}
                           alt={item.label}
-                          className="h-28 w-full rounded-lg bg-white object-contain"
+                          className="h-28 w-full rounded-lg bg-surface object-contain"
                         />
                         <div className="mt-1 flex items-center justify-between px-1">
-                          <span className="font-mono-tabular text-[11px] font-semibold text-slate-600">
+                          <span className="font-mono-tabular text-[11px] font-semibold text-ink-muted">
                             Slide {idx + 1}
                           </span>
                           <button
@@ -1435,7 +1435,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                               setVideoImages((prev) => prev.filter((x) => x.id !== item.id))
                             }
                             aria-label={`Remove slide ${idx + 1}`}
-                            className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                            className="p-1 text-ink-faint hover:text-danger cursor-pointer"
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
@@ -1446,7 +1446,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 )}
 
                 {videoResult && (
-                  <div className="rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+                  <div className="rounded-xl border border-accent-line bg-accent-soft/60 p-3">
                     <video
                       src={videoResult.blobUrl}
                       controls
@@ -1456,10 +1456,10 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
-                <h2 className="text-sm font-bold text-slate-900">Video Timing</h2>
+              <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:p-5">
+                <h2 className="text-sm font-bold text-ink">Video Timing</h2>
                 <div>
-                  <div className="mb-1 flex justify-between text-xs text-slate-600">
+                  <div className="mb-1 flex justify-between text-xs text-ink-muted">
                     <span>Seconds per Page</span>
                     <span className="font-mono-tabular">{videoDurationSec}s</span>
                   </div>
@@ -1491,7 +1491,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       setVideoBusy(false);
                     }
                   }}
-                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex min-h-[46px] items-center justify-center gap-2 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong disabled:opacity-50 cursor-pointer"
                 >
                   {videoBusy ? (
                     <>
@@ -1509,7 +1509,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDownloadDataUrl(videoResult.blobUrl, videoResult.filename)}
-                    className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                    className="inline-flex min-h-[42px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-4 text-xs font-semibold text-ink-strong hover:bg-surface-muted cursor-pointer"
                   >
                     <Download className="h-4 w-4" aria-hidden="true" />
                     <span>Download .WEBM Video</span>
@@ -1531,15 +1531,15 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
           onClick={() => setProjectPickerTarget(null)}
         >
           <div
-            className="flex max-h-[82dvh] w-full max-w-lg flex-col rounded-t-3xl sm:rounded-2xl bg-white shadow-2xl overflow-hidden animate-sheet-up"
+            className="flex max-h-[82dvh] w-full max-w-lg flex-col rounded-t-3xl sm:rounded-2xl bg-surface shadow-2xl overflow-hidden animate-sheet-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-              <h2 className="text-sm font-bold text-slate-900">Select from Library Scans</h2>
+            <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+              <h2 className="text-sm font-bold text-ink">Select from Library Scans</h2>
               <button
                 type="button"
                 onClick={() => setProjectPickerTarget(null)}
-                className="text-xs font-semibold text-slate-500 hover:text-slate-900 cursor-pointer"
+                className="text-xs font-semibold text-ink-muted hover:text-ink cursor-pointer"
               >
                 Close
               </button>
@@ -1589,20 +1589,20 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
                       }
                     }
                   }}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 p-2.5 text-left hover:border-teal-500 hover:bg-teal-50/40 cursor-pointer"
+                  className="flex items-center gap-3 rounded-xl border border-line p-2.5 text-left hover:border-teal-500 hover:bg-accent-soft/40 cursor-pointer"
                 >
                   <img
                     src={doc.pages[0]?.thumbnailDataUrl || doc.pages[0]?.processedDataUrl}
                     alt=""
-                    className="h-14 w-11 shrink-0 rounded-lg border border-slate-200 object-cover"
+                    className="h-14 w-11 shrink-0 rounded-lg border border-line object-cover"
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-slate-900">{doc.title}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="truncate text-sm font-semibold text-ink">{doc.title}</div>
+                    <div className="text-xs text-ink-muted">
                       {doc.pages.length} {doc.pages.length === 1 ? 'page' : 'pages'}
                     </div>
                   </div>
-                  <FileText className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                  <FileText className="h-4 w-4 text-ink-faint" aria-hidden="true" />
                 </button>
               ))}
             </div>
@@ -1612,3 +1612,4 @@ export const ToolsView: React.FC<ToolsViewProps> = ({
     </div>
   );
 };
+

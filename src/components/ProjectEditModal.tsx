@@ -75,15 +75,15 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up"
+        className="w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl bg-surface p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl animate-sheet-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong sm:hidden" />
 
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className="flex items-center justify-between border-b border-line-soft pb-3">
           <div>
-            <h2 className="text-base font-bold text-slate-900">Edit Document Project</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-base font-bold text-ink">Edit Document Project</h2>
+            <p className="text-xs text-ink-muted">
               Rename, organize folder, star, or adjust project pages
             </p>
           </div>
@@ -91,7 +91,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close project settings"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-faint hover:bg-surface-subtle hover:text-ink-soft cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -101,7 +101,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
           <div>
             <label
               htmlFor="project-edit-title"
-              className="mb-1.5 block text-xs font-semibold text-slate-700"
+              className="mb-1.5 block text-xs font-semibold text-ink-soft"
             >
               Project Name
             </label>
@@ -111,13 +111,13 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               data-testid="project-edit-title-input"
-              className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-900 focus:border-teal-600 focus:bg-white focus:outline-none"
+              className="min-h-[44px] w-full rounded-xl border border-line bg-surface-muted px-3 text-sm font-medium text-ink focus:border-accent focus:bg-surface focus:outline-none"
             />
           </div>
 
           <div>
-            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-              <Folder className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+              <Folder className="h-3.5 w-3.5 text-ink-faint" aria-hidden="true" />
               <span>Folder Category</span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
@@ -131,8 +131,8 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
                   }}
                   className={`min-h-[40px] rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
                     folder === opt.id
-                      ? 'border-teal-600 bg-teal-50 text-teal-900'
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      ? 'border-accent bg-accent-soft text-accent-text'
+                      : 'border-line bg-surface text-ink-muted hover:bg-surface-muted'
                   }`}
                 >
                   {opt.label}
@@ -150,12 +150,12 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               }}
               className={`flex min-h-[44px] items-center justify-center gap-2 rounded-xl border px-3 text-xs font-semibold transition-colors cursor-pointer ${
                 starred
-                  ? 'border-amber-300 bg-amber-50 text-amber-900'
-                  : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  ? 'border-warning-line bg-warning-soft text-warning-text'
+                  : 'border-line bg-surface text-ink-soft hover:bg-surface-muted'
               }`}
             >
               <Star
-                className={`h-4 w-4 ${starred ? 'fill-amber-400 text-amber-500' : 'text-slate-400'}`}
+                className={`h-4 w-4 ${starred ? 'fill-amber-400 text-amber-500' : 'text-ink-faint'}`}
                 aria-hidden="true"
               />
               <span>{starred ? 'Favorited' : 'Mark Favorite'}</span>
@@ -165,19 +165,19 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               type="button"
               disabled={document.pages.length <= 1}
               onClick={handleReversePages}
-              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+              className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft hover:bg-surface-muted disabled:opacity-40 cursor-pointer"
             >
-              <ArrowUpDown className="h-4 w-4 text-slate-500" aria-hidden="true" />
+              <ArrowUpDown className="h-4 w-4 text-ink-muted" aria-hidden="true" />
               <span>Reverse Order</span>
             </button>
           </div>
 
-          <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="flex items-center justify-between gap-2 border-t border-line-soft pt-3">
             {!confirmDelete ? (
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
-                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-red-600 hover:bg-red-50 cursor-pointer"
+                className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-danger hover:bg-danger-soft cursor-pointer"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 <span>Delete Project</span>
@@ -201,7 +201,7 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
               type="button"
               onClick={handleSave}
               data-testid="project-edit-save-btn"
-              className="inline-flex min-h-[44px] flex-1 max-w-[180px] items-center justify-center rounded-xl bg-teal-600 px-5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer"
+              className="inline-flex min-h-[44px] flex-1 max-w-[180px] items-center justify-center rounded-xl bg-accent px-5 text-xs font-bold text-white hover:bg-accent-strong active:scale-[0.98] transition-all cursor-pointer"
             >
               Save Changes
             </button>
@@ -211,3 +211,4 @@ export const ProjectEditModal: React.FC<ProjectEditModalProps> = ({
     </div>
   );
 };
+

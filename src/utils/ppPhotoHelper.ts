@@ -136,7 +136,7 @@ export async function detectFaceRegion(imageDataUrl: string): Promise<FaceDetect
         };
       }
     } catch {
-      // FaceDetector failed — fall through to heuristic
+      // FaceDetector failed - fall through to heuristic
     }
   }
 

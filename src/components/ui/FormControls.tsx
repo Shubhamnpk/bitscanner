@@ -179,11 +179,11 @@ export function SelectField<T extends string>({
         aria-activedescendant={open ? `${fieldId}-option-${activeIndex}` : undefined}
         onClick={() => (open ? closeList() : openList())}
         onKeyDown={handleButtonKeyDown}
-        className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-3.5 text-left text-sm font-medium text-slate-800 transition-colors hover:border-slate-300 focus:border-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20 cursor-pointer"
+        className="flex min-h-[44px] w-full items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3.5 text-left text-sm font-medium text-ink-strong transition-colors hover:border-line-strong focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20 cursor-pointer"
       >
         <span className="truncate">{selected?.label}</span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
+          className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${
             open ? 'rotate-180' : ''
           }`}
           aria-hidden="true"
@@ -205,7 +205,7 @@ export function SelectField<T extends string>({
               maxHeight: menu.maxHeight,
               ...(menu.top !== undefined ? { top: menu.top } : { bottom: menu.bottom }),
             }}
-            className="z-[9999] overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-2xl shadow-slate-900/20"
+            className="z-[9999] overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-2xl shadow-slate-900/20"
           >
             {options.map((option, index) => {
               const isSelected = option.value === value;
@@ -221,19 +221,19 @@ export function SelectField<T extends string>({
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => choose(index)}
                   className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm cursor-pointer ${
-                    isActive ? 'bg-teal-50 text-teal-950' : 'text-slate-700'
+                    isActive ? 'bg-accent-soft text-accent-text' : 'text-ink-soft'
                   }`}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{option.label}</span>
                     {option.hint && (
-                      <span className="mt-0.5 block truncate text-[11px] text-slate-400">
+                      <span className="mt-0.5 block truncate text-[11px] text-ink-faint">
                         {option.hint}
                       </span>
                     )}
                   </span>
                   {isSelected && (
-                    <Check className="h-4 w-4 shrink-0 text-teal-600" aria-hidden="true" />
+                    <Check className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
                   )}
                 </button>
               );
@@ -266,14 +266,15 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({
     data-testid={testId}
     onClick={() => onChange(!checked)}
     className={`relative inline-flex h-[26px] w-[46px] shrink-0 items-center rounded-full border transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${
-      checked ? 'border-teal-600 bg-teal-600' : 'border-slate-300 bg-slate-200'
+      checked ? 'border-accent bg-accent' : 'border-line-strong bg-surface-subtle'
     }`}
   >
     <span
-      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition-transform ${
+      className={`inline-block h-5 w-5 transform rounded-full bg-surface shadow-xs transition-transform ${
         checked ? 'translate-x-[23px]' : 'translate-x-[2px]'
       }`}
       aria-hidden="true"
     />
   </button>
 );
+

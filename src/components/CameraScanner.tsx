@@ -885,7 +885,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
       }
 
       haptics.warning();
-      setQrScanNotice('No QR code detected — align code inside box and hold steady');
+      setQrScanNotice('No QR code detected · align code inside box and hold steady');
       return;
     }
 
@@ -1527,7 +1527,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
               {/* Mode-Specific Guides */}
               {scanMode === 'book' && (
-                <div className="pointer-events-none absolute inset-y-6 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-amber-300/80 flex items-end pb-4">
+                <div className="pointer-events-none absolute inset-y-6 left-1/2 -translate-x-1/2 border-l-2 border-dashed border-warning-line/80 flex items-end pb-4">
                   <span className="ml-2 rounded bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
                     Book Spine Split
                   </span>
@@ -1569,7 +1569,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                       qrCompletedPayload
                         ? 'border-emerald-400 bg-emerald-500/10 shadow-[0_0_30px_rgba(52,211,153,0.35)]'
                         : qrChunkFlash
-                          ? 'border-emerald-300 bg-teal-400/20 shadow-[0_0_25px_rgba(45,212,191,0.45)]'
+                          ? 'border-success-line bg-teal-400/20 shadow-[0_0_25px_rgba(45,212,191,0.45)]'
                           : 'border-teal-400/85 bg-black/15 shadow-[0_0_15px_rgba(20,184,166,0.2)]'
                     }`}
                   >
@@ -1740,18 +1740,18 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 <div
                   data-testid="qr-completed-card"
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl animate-sheet-up"
+                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-line bg-surface p-4 text-ink shadow-2xl animate-sheet-up"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-success">
                         <Check className="h-4 w-4" aria-hidden="true" />
                         <span>Received via QR Beam</span>
                       </div>
-                      <h3 className="mt-0.5 truncate text-sm font-bold text-slate-900">
+                      <h3 className="mt-0.5 truncate text-sm font-bold text-ink">
                         {qrCompletedPayload.title}
                       </h3>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-ink-muted">
                         {qrCompletedPayload.filename} · {formatByteSize(qrCompletedPayload.byteLength)}
                         {qrCompletedPayload.pages ? ` · ${qrCompletedPayload.pages.length} page(s)` : ''}
                       </p>
@@ -1764,7 +1764,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                         setQrScanNotice('Scanning active · Align QR code inside frame');
                       }}
                       aria-label="Scan another QR file"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-faint hover:bg-surface-subtle cursor-pointer"
                     >
                       <RotateCcw className="h-4 w-4" aria-hidden="true" />
                     </button>
@@ -1780,7 +1780,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                           onClose();
                         }}
                         data-testid="qr-save-to-library-btn"
-                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                        className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong cursor-pointer"
                       >
                         <FolderPlus className="h-4 w-4" aria-hidden="true" />
                         <span>Save to Library</span>
@@ -1819,7 +1819,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                         window.setTimeout(() => URL.revokeObjectURL(dlUrl), 1000);
                       }}
                       data-testid="qr-download-received-btn"
-                      className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-strong hover:bg-surface-muted cursor-pointer"
                     >
                       <Download className="h-4 w-4" aria-hidden="true" />
                       <span>Download File</span>
@@ -1833,15 +1833,15 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 <div
                   data-testid="qr-plain-text-card"
                   onPointerDown={(e) => e.stopPropagation()}
-                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl animate-sheet-up"
+                  className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md rounded-2xl border border-line bg-surface p-4 text-ink shadow-2xl animate-sheet-up"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-teal-700">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-accent-strong">
                         <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>{/^https?:\/\//i.test(qrPlainText.trim()) ? 'Web Link QR' : 'QR Code Content'}</span>
                       </div>
-                      <p className="mt-1 break-all text-xs font-medium text-slate-800 line-clamp-3 select-text">
+                      <p className="mt-1 break-all text-xs font-medium text-ink-strong line-clamp-3 select-text">
                         {qrPlainText}
                       </p>
                     </div>
@@ -1849,7 +1849,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                       type="button"
                       onClick={() => setQrPlainText(null)}
                       aria-label="Dismiss scanned QR text"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-faint hover:bg-surface-subtle cursor-pointer"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
@@ -1864,7 +1864,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                           haptics.tap();
                           window.open(qrPlainText.trim(), '_blank', 'noopener,noreferrer');
                         }}
-                        className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                        className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong cursor-pointer"
                       >
                         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Open Link</span>
@@ -1876,9 +1876,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                           haptics.tap();
                           window.open(`https://www.google.com/search?q=${encodeURIComponent(qrPlainText.trim())}`, '_blank', 'noopener,noreferrer');
                         }}
-                        className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                        className="inline-flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-strong hover:bg-surface-muted cursor-pointer"
                       >
-                        <Search className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                        <Search className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
                         <span>Search Web</span>
                       </button>
                     )}
@@ -1890,9 +1890,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                         setQrCopied(true);
                         window.setTimeout(() => setQrCopied(false), 1500);
                       }}
-                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-800 hover:bg-slate-50 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-line px-3 text-xs font-semibold text-ink-strong hover:bg-surface-muted cursor-pointer"
                     >
-                      {qrCopied ? <Check className="h-3.5 w-3.5 text-teal-600" /> : <Copy className="h-3.5 w-3.5" />}
+                      {qrCopied ? <Check className="h-3.5 w-3.5 text-accent" /> : <Copy className="h-3.5 w-3.5" />}
                       <span>{qrCopied ? 'Copied' : 'Copy'}</span>
                     </button>
 
@@ -1915,7 +1915,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                           );
                           onClose();
                         }}
-                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong cursor-pointer"
                       >
                         <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Save as Note</span>
@@ -1929,7 +1929,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                         setQrPlainText(null);
                         setQrScanNotice('Scanning active · Align QR code inside frame');
                       }}
-                      className="inline-flex min-h-[38px] items-center gap-1 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center gap-1 rounded-xl border border-line px-3 text-xs font-semibold text-ink-muted hover:bg-surface-subtle cursor-pointer"
                     >
                       <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Scan Another</span>
@@ -2070,11 +2070,11 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 data-testid="camera-shutter-button"
                 className="relative flex h-[76px] w-[76px] items-center justify-center rounded-full border-4 border-white/90 bg-white/15 active:scale-92 transition-transform disabled:opacity-60 cursor-pointer"
               >
-                <span className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-white text-slate-950 shadow-lg">
+                <span className="flex h-[58px] w-[58px] items-center justify-center rounded-full bg-surface text-slate-950 shadow-lg">
                   {scanMode === 'qr' ? (
-                    <QrCode className="h-6 w-6 text-teal-700" aria-hidden="true" />
+                    <QrCode className="h-6 w-6 text-accent-strong" aria-hidden="true" />
                   ) : (
-                    <Camera className="h-6 w-6 text-teal-700" aria-hidden="true" />
+                    <Camera className="h-6 w-6 text-accent-strong" aria-hidden="true" />
                   )}
                 </span>
               </button>
@@ -2136,10 +2136,10 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
         /* STAGE B: Redesigned Cohesive Light-Theme Crop Verification */
         <div
           data-testid="crop-review-stage"
-          className="flex h-full flex-col bg-slate-100 text-slate-900"
+          className="flex h-full flex-col bg-surface-subtle text-ink"
         >
           {/* Clean Header */}
-          <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-5">
+          <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-3 sm:px-5">
             <button
               type="button"
               onClick={() => {
@@ -2147,14 +2147,14 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 onClose();
               }}
               aria-label="Cancel scan"
-              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-ink-muted hover:bg-surface-subtle cursor-pointer"
             >
               <X className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Cancel</span>
             </button>
 
             <div className="flex flex-col items-center">
-              <span className="text-sm font-bold tracking-tight text-slate-900">
+              <span className="text-sm font-bold tracking-tight text-ink">
                 {scanMode === 'id_card'
                   ? selectedQueueIdx === 0
                     ? 'Verify Front Crop'
@@ -2166,17 +2166,17 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
               {activeItem && (
                 <div className="mt-0.5 flex items-center">
                   {activeItem.confidence !== undefined && activeItem.confidence >= 0.88 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-success-soft border border-success-line px-2 py-0.5 text-[10px] font-semibold text-success">
                       <ShieldCheck className="h-3 w-3" />
                       Auto-crop confident ({Math.round(activeItem.confidence * 100)}%)
                     </span>
                   ) : activeItem.confidence !== undefined && activeItem.confidence > 0 ? (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft border border-warning-line px-2 py-0.5 text-[10px] font-semibold text-warning">
                       <AlertTriangle className="h-3 w-3" />
-                      Low confidence ({Math.round(activeItem.confidence * 100)}%) — full image kept by default
+                      Low confidence ({Math.round(activeItem.confidence * 100)}%) · full image kept by default
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface-subtle border border-line px-2 py-0.5 text-[10px] font-semibold text-ink-muted">
                       <Hand className="h-3 w-3" />
                       Full image (no crop)
                     </span>
@@ -2194,7 +2194,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   setIsMultiMode(true);
                   setStage('viewfinder');
                 }}
-                className="inline-flex h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                className="inline-flex h-10 items-center gap-1 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-accent-strong hover:bg-accent-soft cursor-pointer"
               >
                 <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Add Page</span>
@@ -2206,7 +2206,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
 
           {/* Clean Multi-Page Switcher Strip (Non-overlapping thumbs) */}
           {queue.length > 1 && (
-            <div className="flex shrink-0 items-center justify-center gap-2 overflow-x-auto border-b border-slate-200 bg-white/90 px-4 py-2">
+            <div className="flex shrink-0 items-center justify-center gap-2 overflow-x-auto border-b border-line bg-surface/90 px-4 py-2">
               {queue.map((item, idx) => {
                 const active = idx === selectedQueueIdx;
                 return (
@@ -2219,18 +2219,18 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     }}
                     className={`flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all cursor-pointer ${
                       active
-                        ? 'border-teal-600 bg-teal-50 ring-2 ring-teal-500/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-accent bg-accent-soft ring-2 ring-teal-500/20'
+                        : 'border-line bg-surface hover:border-line-strong'
                     }`}
                   >
                     <img
                       src={item.originalDataUrl}
                       alt={`Captured page ${idx + 1}`}
-                      className="h-8 w-8 rounded-lg object-cover border border-slate-200"
+                      className="h-8 w-8 rounded-lg object-cover border border-line"
                     />
                     <span
                       className={`text-xs font-bold ${
-                        active ? 'text-teal-900' : 'text-slate-700'
+                        active ? 'text-accent-text' : 'text-ink-soft'
                       }`}
                     >
                       {scanMode === 'id_card' ? (idx === 0 ? 'Front' : 'Back') : `P${idx + 1}`}
@@ -2263,7 +2263,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
           </div>
 
           {/* Unified Action Toolbar + Safe Bottom Primary Footer */}
-          <footer className="shrink-0 border-t border-slate-200 bg-white px-4 pt-2.5 pb-[max(1.15rem,env(safe-area-inset-bottom))] sm:pb-5 shadow-[0_-6px_24px_-12px_rgba(15,23,42,0.1)]">
+          <footer className="shrink-0 border-t border-line bg-surface px-4 pt-2.5 pb-[max(1.15rem,env(safe-area-inset-bottom))] sm:pb-5 shadow-[0_-6px_24px_-12px_rgba(15,23,42,0.1)]">
             <div className="mx-auto flex max-w-2xl flex-col gap-3">
               {/* Tool Strip: Per-page Retake, Auto-Detect, Full Frame, Rotate 90°, Delete */}
               <div className="grid grid-cols-5 gap-1.5">
@@ -2280,9 +2280,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     }
                     setStage('viewfinder');
                   }}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface-muted/70 px-1 text-[11px] font-semibold text-ink-soft hover:bg-surface-subtle active:scale-95 transition cursor-pointer"
                 >
-                  <Camera className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                  <Camera className="h-4 w-4 text-ink-soft" aria-hidden="true" />
                   <span className="truncate max-w-full">
                     {queue.length > 1
                       ? `Retake P${selectedQueueIdx + 1}`
@@ -2295,9 +2295,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   data-testid="crop-auto-detect-btn"
                   disabled={detecting}
                   onClick={handleAutoDetectCurrent}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface-muted/70 px-1 text-[11px] font-semibold text-accent-text hover:bg-accent-soft disabled:opacity-50 active:scale-95 transition cursor-pointer"
                 >
-                  <Sparkles className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                  <Sparkles className="h-4 w-4 text-accent" aria-hidden="true" />
                   <span>{detecting ? 'Scan...' : 'Auto'}</span>
                 </button>
 
@@ -2318,9 +2318,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                     );
                     commitQueue(next);
                   }}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface-muted/70 px-1 text-[11px] font-semibold text-ink-soft hover:bg-surface-subtle active:scale-95 transition cursor-pointer"
                 >
-                  <Maximize2 className="h-4 w-4 text-slate-600" aria-hidden="true" />
+                  <Maximize2 className="h-4 w-4 text-ink-muted" aria-hidden="true" />
                   <span>Full</span>
                 </button>
 
@@ -2328,9 +2328,9 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   type="button"
                   data-testid="crop-rotate-btn"
                   onClick={handleRotateSource90}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-slate-50/70 px-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface-muted/70 px-1 text-[11px] font-semibold text-ink-soft hover:bg-surface-subtle active:scale-95 transition cursor-pointer"
                 >
-                  <RotateCw className="h-4 w-4 text-slate-700" aria-hidden="true" />
+                  <RotateCw className="h-4 w-4 text-ink-soft" aria-hidden="true" />
                   <span>Rotate</span>
                 </button>
 
@@ -2338,7 +2338,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   type="button"
                   data-testid="crop-delete-btn"
                   onClick={() => handleRemoveQueueItem(selectedQueueIdx)}
-                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-red-200 bg-red-50 px-1 text-[11px] font-semibold text-red-600 hover:bg-red-100 active:scale-95 transition cursor-pointer"
+                  className="flex min-h-[46px] flex-col items-center justify-center gap-0.5 rounded-xl border border-danger-line bg-danger-soft px-1 text-[11px] font-semibold text-danger hover:bg-danger-soft active:scale-95 transition cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                   <span>Delete</span>
@@ -2355,13 +2355,13 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                   aria-pressed={splitAutoSpread}
                   className={`flex items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer ${
                     splitAutoSpread
-                      ? 'border-teal-500 bg-teal-50 text-teal-800'
-                      : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:bg-slate-100'
+                      ? 'border-teal-500 bg-accent-soft text-accent-text'
+                      : 'border-line bg-surface-muted/70 text-ink-soft hover:bg-surface-subtle'
                   }`}
                 >
                   <span className="inline-flex items-center gap-2">
-                    <BookOpen className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
-                    <span>Wide 2-page spread detected — split down spine</span>
+                    <BookOpen className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
+                    <span>Wide 2-page spread detected · split down spine</span>
                   </span>
                   <span className="font-mono-tabular text-[11px] font-bold">
                     {splitAutoSpread ? 'ON' : 'OFF'}
@@ -2375,7 +2375,7 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
                 disabled={queue.length === 0 || processing}
                 onClick={handleProcessAndShowResult}
                 data-testid="apply-crop-result-btn"
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-6 text-sm font-bold text-white shadow-md shadow-teal-600/20 hover:bg-teal-700 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-accent px-6 text-sm font-bold text-white shadow-md shadow-teal-600/20 hover:bg-accent-strong active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 <span>
@@ -2395,3 +2395,4 @@ export const CameraScanner: React.FC<CameraScannerProps> = ({
     </div>
   );
 };
+

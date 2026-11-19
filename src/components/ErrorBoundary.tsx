@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="flex h-screen items-center justify-center p-4 text-center">
           <div>
             <h1 className="text-xl font-semibold">Something went wrong.</h1>
-            <p className="mt-2 text-slate-600">Please try refreshing the page.</p>
+            <p className="mt-2 text-ink-muted">Please try refreshing the page.</p>
             <button
               className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-white"
               onClick={() => window.location.reload()}

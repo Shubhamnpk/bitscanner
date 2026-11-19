@@ -35,6 +35,7 @@ import type {
   SavedSignature,
   ScanDocument,
 } from '../types/scanner';
+import { FILTER_SETTINGS_OPTIONS } from '../data/filters';
 import {
   APP_VERSION,
   DEFAULT_APP_SETTINGS,
@@ -51,6 +52,7 @@ import {
   parseWorkspaceBackup,
 } from '../utils/workspaceBackup';
 import { Modal } from './ui/Modal';
+import { cardClass } from './ui/primitives';
 import { PWAInstallButton } from './PWAInstallBanner';
 import { SelectField, ToggleSwitch } from './ui/FormControls';
 import { useHaptics } from '../hooks/useHaptics';
@@ -69,15 +71,7 @@ interface SettingsViewProps {
   onBackToProfile: () => void;
 }
 
-const FILTER_OPTIONS: Array<{ value: FilterPreset; label: string; hint?: string }> = [
-  { value: 'magic_color', label: 'Magic Color', hint: 'Recommended · clean paper, rich ink' },
-  { value: 'magic_hd', label: 'Magic Color HD', hint: 'Beta · flattens uneven light' },
-  { value: 'original', label: 'Original Unadjusted' },
-  { value: 'lighten', label: 'Lighten Lift' },
-  { value: 'bw_sharp', label: 'B&W Crisp Text' },
-  { value: 'grayscale', label: 'Grayscale' },
-  { value: 'shadow_remove', label: 'Shadow Removal' },
-];
+const FILTER_OPTIONS = FILTER_SETTINGS_OPTIONS.map((option) => ({ ...option }));
 
 const OCR_LANG_OPTIONS = [
   { value: 'eng', label: 'English' },
@@ -237,32 +231,32 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({
   const expanded = forceOpen || open;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
+    <section className={cardClass('overflow-hidden shadow-xs')}>
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={expanded}
         aria-controls={contentId}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600 cursor-pointer"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-surface-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600 cursor-pointer"
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-strong">
           <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold text-slate-900">{title}</span>
-          <span className="mt-0.5 block truncate text-xs text-slate-500">
+          <span className="block text-sm font-bold text-ink">{title}</span>
+          <span className="mt-0.5 block truncate text-xs text-ink-muted">
             {!expanded && summary ? summary : description}
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
+          className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${
             expanded ? 'rotate-180' : ''
           }`}
           aria-hidden="true"
         />
       </button>
       {expanded && (
-        <div id={contentId} className="divide-y divide-slate-100 border-t border-slate-100">
+        <div id={contentId} className="divide-y divide-line-soft border-t border-line-soft">
           {children}
         </div>
       )}
@@ -279,8 +273,8 @@ const ToggleRow: React.FC<{
 }> = ({ title, description, checked, onChange, testId }) => (
   <div className="flex items-start justify-between gap-4 px-4 py-3.5">
     <div className="min-w-0">
-      <div className="text-sm font-semibold text-slate-900">{title}</div>
-      <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</div>
+      <div className="text-sm font-semibold text-ink">{title}</div>
+      <div className="mt-0.5 text-xs leading-relaxed text-ink-muted">{description}</div>
     </div>
     <div className="pt-0.5">
       <ToggleSwitch checked={checked} onChange={onChange} ariaLabel={title} testId={testId} />
@@ -295,8 +289,8 @@ const FieldRow: React.FC<{
 }> = ({ label, hint, children }) => (
   <div className="px-4 py-3.5">
     <div className="mb-2 flex items-baseline justify-between gap-2">
-      <span className="text-sm font-semibold text-slate-900">{label}</span>
-      {hint && <span className="text-[11px] text-slate-400">{hint}</span>}
+      <span className="text-sm font-semibold text-ink">{label}</span>
+      {hint && <span className="text-[11px] text-ink-faint">{hint}</span>}
     </div>
     {children}
   </div>
@@ -320,8 +314,8 @@ const Segmented: React.FC<{
           onClick={() => onChange(option.value)}
           className={`inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-semibold transition-colors cursor-pointer ${
             selected
-              ? 'border-teal-600 bg-teal-50 text-teal-900'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              ? 'border-accent bg-accent-soft text-accent-text'
+              : 'border-line bg-surface text-ink-muted hover:bg-surface-muted'
           }`}
         >
           {selected && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
@@ -349,13 +343,13 @@ const ThemePicker: React.FC<{
           onClick={() => onChange(option.value)}
           className={`flex min-h-[74px] flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 transition-colors cursor-pointer ${
             selected
-              ? 'border-teal-600 bg-teal-50 text-teal-900'
-              : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              ? 'border-accent bg-accent-soft text-accent-text'
+              : 'border-line bg-surface text-ink-muted hover:bg-surface-muted'
           }`}
         >
           <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
           <span className="text-xs font-bold">{option.label}</span>
-          <span className="text-[10px] font-medium text-slate-500">{option.hint}</span>
+          <span className="text-[10px] font-medium text-ink-muted">{option.hint}</span>
         </button>
       );
     })}
@@ -515,7 +509,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-4 pb-28 sm:gap-5 sm:p-6 lg:p-8"
     >
       {/* Header */}
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-3.5">
+      <div className="flex items-center justify-between gap-2 border-b border-line pb-3.5">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -525,13 +519,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             }}
             data-testid="settings-back-profile-btn"
             aria-label="Back to profile"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-soft transition-colors hover:bg-surface-muted cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <div className="min-w-0">
-            <h1 className="truncate text-base font-bold text-slate-900 sm:text-lg">Settings</h1>
-            <p className="text-[11px] text-slate-500">Changes save automatically</p>
+            <h1 className="truncate text-base font-bold text-ink sm:text-lg">Settings</h1>
+            <p className="text-[11px] text-ink-muted">Changes save automatically</p>
           </div>
         </div>
 
@@ -552,19 +546,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             showToast('Preferences restored to defaults.');
           }}
           data-testid="settings-restore-defaults-btn"
-          className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
+          className="inline-flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft transition-colors hover:bg-surface-muted cursor-pointer"
         >
-          <RotateCcw className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+          <RotateCcw className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
           <span className="hidden sm:inline">Restore defaults</span>
           <span className="sm:hidden">Reset</span>
         </button>
       </div>
 
       {/* Search */}
-      <div className="sticky top-0 z-20 -mx-4 bg-slate-50/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div className="sticky top-0 z-20 -mx-4 bg-surface-muted px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="relative">
           <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
             aria-hidden="true"
           />
           <input
@@ -576,10 +570,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             onKeyDown={(event) => {
               if (event.key === 'Escape') setSearch('');
             }}
-            placeholder="Search settings — theme, OCR, backup…"
+            placeholder="Search settings · theme, OCR, backup…"
             aria-label="Search settings"
             data-testid="settings-search-input"
-            className="min-h-[46px] w-full rounded-xl border border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-900 placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
+            className="min-h-[46px] w-full rounded-xl border border-line bg-surface pl-9 pr-10 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-600/20"
           />
           {search && (
             <button
@@ -589,14 +583,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 setSearch('');
               }}
               aria-label="Clear search"
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-surface-subtle hover:text-ink-soft cursor-pointer"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
           )}
         </div>
         {searching && (
-          <p className="mt-1.5 px-1 text-[11px] font-medium text-slate-500" role="status">
+          <p className="mt-1.5 px-1 text-[11px] font-medium text-ink-muted" role="status">
             {visibleSections.length === 0
               ? 'No settings match that search'
               : `${visibleSections.length} section${visibleSections.length === 1 ? '' : 's'} match`}
@@ -607,17 +601,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {toast && (
         <div
           role="status"
-          className="animate-sheet-up rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-semibold text-emerald-800"
+          className="animate-sheet-up rounded-xl border border-success-line bg-success-soft px-3.5 py-2.5 text-xs font-semibold text-success"
         >
           {toast}
         </div>
       )}
 
       {visibleSections.length === 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center">
+        <div className="rounded-2xl border border-line bg-surface px-4 py-10 text-center">
           <Search className="mx-auto h-6 w-6 text-slate-300" aria-hidden="true" />
-          <p className="mt-2 text-sm font-semibold text-slate-800">Nothing found for “{query}”</p>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-2 text-sm font-semibold text-ink-strong">Nothing found for “{query}”</p>
+          <p className="mt-1 text-xs text-ink-muted">
             Try “theme”, “OCR”, “backup” or “layout”.
           </p>
           <button
@@ -626,7 +620,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               haptics.tap();
               setSearch('');
             }}
-            className="mt-3 min-h-[38px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+            className="mt-3 min-h-[38px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
           >
             Clear search
           </button>
@@ -728,9 +722,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   })
                 }
                 aria-label="Default filename prefix"
-                className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                className="min-h-[44px] w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-ink focus:border-accent focus:outline-none"
               />
-              <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 font-mono-tabular text-[11px] text-slate-500">
+              <span className="shrink-0 rounded-lg bg-surface-subtle px-2 py-1 font-mono-tabular text-[11px] text-ink-muted">
                 001.pdf
               </span>
             </div>
@@ -856,12 +850,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         >
           <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-strong">
                 <FolderDown className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900">Backup &amp; restore</div>
-                <div className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                <div className="text-sm font-semibold text-ink">Backup &amp; restore</div>
+                <div className="mt-0.5 text-xs leading-relaxed text-ink-muted">
                   {documents.length} projects · {totalPages} pages ·{' '}
                   {savedSignatures.length} signatures
                 </div>
@@ -872,16 +866,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="button"
                 onClick={openImport}
                 data-testid="settings-import-btn"
-                className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:flex-none cursor-pointer"
+                className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-xs font-semibold text-ink-soft transition-colors hover:bg-surface-muted sm:flex-none cursor-pointer"
               >
-                <Upload className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                <Upload className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
                 Import
               </button>
               <button
                 type="button"
                 onClick={openExport}
                 data-testid="settings-export-btn"
-                className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white transition-colors hover:bg-teal-700 sm:flex-none cursor-pointer"
+                className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-white transition-colors hover:bg-accent-strong sm:flex-none cursor-pointer"
               >
                 <Download className="h-3.5 w-3.5" aria-hidden="true" />
                 Export
@@ -891,12 +885,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <div className="flex items-start justify-between gap-3 px-4 py-3.5">
             <div className="flex min-w-0 items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-danger-soft text-danger">
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-slate-900">Erase local data</div>
-                <div className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                <div className="text-sm font-semibold text-ink">Erase local data</div>
+                <div className="mt-0.5 text-xs leading-relaxed text-ink-muted">
                   Delete every project &amp; signature, then restore the samples
                 </div>
               </div>
@@ -908,7 +902,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 setEraseOpen(true);
               }}
               data-testid="settings-erase-btn"
-              className="min-h-[38px] shrink-0 self-center rounded-xl border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 cursor-pointer"
+              className="min-h-[38px] shrink-0 self-center rounded-xl border border-danger-line bg-surface px-3 text-xs font-semibold text-danger transition-colors hover:bg-danger-soft cursor-pointer"
             >
               Erase
             </button>
@@ -933,28 +927,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 haptics.tap();
                 onReplayOnboarding();
               }}
-              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 cursor-pointer"
+              className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-soft transition-colors hover:bg-surface-muted cursor-pointer"
             >
-              <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+              <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
               <span>Replay setup tour</span>
             </button>
           </div>
           <div className="flex items-start gap-2.5 px-4 py-3">
             <FlaskConical
-              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600"
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning"
               aria-hidden="true"
             />
-            <p className="text-[11px] leading-relaxed text-slate-500">
+            <p className="text-[11px] leading-relaxed text-ink-muted">
               Press{' '}
-              <span className="font-mono-tabular rounded-md border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="font-mono-tabular rounded-md border border-line bg-surface px-1 py-0.5 text-[10px] font-semibold text-ink-muted">
                 Ctrl
               </span>{' '}
               +{' '}
-              <span className="font-mono-tabular rounded-md border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="font-mono-tabular rounded-md border border-line bg-surface px-1 py-0.5 text-[10px] font-semibold text-ink-muted">
                 Shift
               </span>{' '}
               +{' '}
-              <span className="font-mono-tabular rounded-md border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-600">
+              <span className="font-mono-tabular rounded-md border border-line bg-surface px-1 py-0.5 text-[10px] font-semibold text-ink-muted">
                 D
               </span>{' '}
               to open the demo workspace. Sample files load without touching your scans.
@@ -963,7 +957,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </SettingsSection>
       )}
 
-      <p className="flex items-center justify-center gap-1.5 px-2 text-center text-[11px] text-slate-400">
+      <p className="flex items-center justify-center gap-1.5 px-2 text-center text-[11px] text-ink-faint">
         <Type className="h-3.5 w-3.5" aria-hidden="true" />
         bitscanner v{APP_VERSION} · every preference stays on this device
       </p>
@@ -981,7 +975,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <button
               type="button"
               onClick={() => setExportOpen(false)}
-              className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              className="min-h-[40px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
             >
               Cancel
             </button>
@@ -989,7 +983,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               type="button"
               onClick={handleExport}
               data-testid="settings-export-confirm-btn"
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 cursor-pointer"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               Export {exportChoice === 'json' ? 'JSON' : 'CSV'}
@@ -1005,24 +999,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             data-testid="settings-export-json-option"
             className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors cursor-pointer ${
               exportChoice === 'json'
-                ? 'border-teal-600 bg-teal-50/70'
-                : 'border-slate-200 bg-white hover:bg-slate-50'
+                ? 'border-accent bg-accent-soft/70'
+                : 'border-line bg-surface hover:bg-surface-muted'
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-700">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-soft text-accent-strong">
               <FileJson className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
                 JSON backup
                 {exportChoice === 'json' && (
-                  <Check className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                  <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
                 )}
               </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                Full restore file — projects, pages, OCR, signatures and preferences.
+              <span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">
+                Full restore file: projects, pages, OCR, signatures and preferences.
               </span>
-              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+              <span className="mt-1 block text-[11px] font-semibold text-ink-muted">
                 {documents.length} projects · {totalPages} pages ·{' '}
                 {formatByteSize(estimatedBytes)}
               </span>
@@ -1036,25 +1030,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             data-testid="settings-export-csv-option"
             className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-colors cursor-pointer ${
               exportChoice === 'csv'
-                ? 'border-teal-600 bg-teal-50/70'
-                : 'border-slate-200 bg-white hover:bg-slate-50'
+                ? 'border-accent bg-accent-soft/70'
+                : 'border-line bg-surface hover:bg-surface-muted'
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-info-soft text-info">
               <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              <span className="flex items-center gap-2 text-sm font-bold text-ink">
                 CSV index
                 {exportChoice === 'csv' && (
-                  <Check className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                  <Check className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
                 )}
               </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-slate-500">
-                One row per project — title, folder, pages, dates and OCR characters. No images,
+              <span className="mt-0.5 block text-xs leading-relaxed text-ink-muted">
+                One row per project: title, folder, pages, dates and OCR characters. No images,
                 so it is not a restore file.
               </span>
-              <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+              <span className="mt-1 block text-[11px] font-semibold text-ink-muted">
                 {documents.length} rows · opens in Excel or Sheets
               </span>
             </span>
@@ -1069,12 +1063,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         title="Import a backup"
         description="Merge a bitscanner .json file into this workspace."
         icon={Upload}
-        iconClassName="bg-violet-50 text-violet-700"
+        iconClassName="bg-violet-soft text-violet"
         testId="settings-import-modal"
         footer={
           importPreview ? (
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-medium text-slate-500">Existing items are kept</span>
+              <span className="text-[11px] font-medium text-ink-muted">Existing items are kept</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -1082,7 +1076,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     setImportPreview(null);
                     setImportError('');
                   }}
-                  className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[40px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
                 >
                   Choose another
                 </button>
@@ -1091,7 +1085,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   onClick={handleConfirmImport}
                   disabled={importing}
                   data-testid="settings-import-confirm-btn"
-                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white transition-colors hover:bg-teal-700 disabled:opacity-60 cursor-pointer"
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-white transition-colors hover:bg-accent-strong disabled:opacity-60 cursor-pointer"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   {importing ? 'Importing…' : 'Import now'}
@@ -1103,7 +1097,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setImportOpen(false)}
-                className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                className="min-h-[40px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
               >
                 Cancel
               </button>
@@ -1134,48 +1128,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 importInputRef.current?.click();
               }}
               data-testid="settings-import-choose-btn"
-              className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center transition-colors hover:border-teal-300 hover:bg-teal-50/40 cursor-pointer"
+              className="flex w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-line bg-surface-muted/70 px-4 py-8 text-center transition-colors hover:border-accent-line hover:bg-accent-soft/40 cursor-pointer"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-teal-700 shadow-xs">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface text-accent-strong shadow-xs">
                 <Upload className="h-5 w-5" aria-hidden="true" />
               </span>
-              <span className="text-sm font-bold text-slate-800">Choose a .json backup</span>
-              <span className="text-[11px] text-slate-500">
+              <span className="text-sm font-bold text-ink-strong">Choose a .json backup</span>
+              <span className="text-[11px] text-ink-muted">
                 Exported from Settings → Data & backup
               </span>
             </button>
-            <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500">
-              <HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-surface-muted px-3 py-2.5 text-[11px] leading-relaxed text-ink-muted">
+              <HardDrive className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint" aria-hidden="true" />
               Importing merges by ID: matching projects are replaced, everything else stays. Export
               a backup first if you want an undo point.
             </p>
           </div>
         ) : (
           <div>
-            <div className="flex items-center gap-2.5 rounded-xl border border-teal-200 bg-teal-50/70 px-3.5 py-3">
-              <FileJson className="h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />
+            <div className="flex items-center gap-2.5 rounded-xl border border-accent-line bg-accent-soft/70 px-3.5 py-3">
+              <FileJson className="h-4 w-4 shrink-0 text-accent-strong" aria-hidden="true" />
               <div className="min-w-0">
-                <div className="truncate text-xs font-bold text-teal-950">
+                <div className="truncate text-xs font-bold text-accent-text">
                   {importPreview.fileName}
                 </div>
-                <div className="text-[11px] text-teal-900/80">
+                <div className="text-[11px] text-accent-text/80">
                   {importPreview.documents.length} projects · {importPreview.pageCount} pages ·{' '}
                   {importPreview.signatures.length} signatures
                   {importPreview.version ? ` · v${importPreview.version}` : ''}
                 </div>
               </div>
             </div>
-            <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-slate-500">
+            <ul className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-ink-muted">
               <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" aria-hidden="true" />
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
                 New projects and signatures are added to this device.
               </li>
               <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" aria-hidden="true" />
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
                 Items with the same ID are updated, never duplicated.
               </li>
               <li className="flex items-start gap-2">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal-600" aria-hidden="true" />
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" aria-hidden="true" />
                 Nothing is uploaded anywhere.
               </li>
             </ul>
@@ -1185,7 +1179,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         {importError && (
           <div
             role="alert"
-            className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[11px] font-medium leading-relaxed text-red-700"
+            className="mt-3 rounded-xl border border-danger-line bg-danger-soft px-3.5 py-2.5 text-[11px] font-medium leading-relaxed text-danger"
           >
             {importError}
           </div>
@@ -1199,14 +1193,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         title="Erase local data?"
         description="This cannot be undone."
         icon={AlertTriangle}
-        iconClassName="bg-red-50 text-red-600"
+        iconClassName="bg-danger-soft text-danger"
         testId="settings-erase-modal"
         footer={
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={() => setEraseOpen(false)}
-              className="min-h-[40px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+              className="min-h-[40px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
             >
               Keep my scans
             </button>
@@ -1222,11 +1216,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         }
       >
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs leading-relaxed text-red-800">
+        <div className="rounded-xl border border-danger-line bg-danger-soft px-3.5 py-3 text-xs leading-relaxed text-danger-text">
           Every project, page, signature and OCR result in this browser is deleted. The three
           sample documents are restored afterwards. Preferences and your profile stay as they are.
         </div>
-        <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+        <p className="mt-3 text-[11px] leading-relaxed text-ink-muted">
           Need to keep something? Cancel and export a JSON backup first.
         </p>
       </Modal>

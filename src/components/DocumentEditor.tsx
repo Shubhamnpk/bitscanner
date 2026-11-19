@@ -49,6 +49,7 @@ import type {
   WatermarkConfig,
 } from '../types/scanner';
 import { DEFAULT_ADJUSTMENTS } from '../types/scanner';
+import { FILTER_PRESETS } from '../data/filters';
 import { useHaptics } from '../hooks/useHaptics';
 import { clamp } from '../utils/cvGeometry';
 import { reorderPageInList } from '../utils/projectHelpers';
@@ -95,17 +96,6 @@ interface DocumentEditorProps {
   onBackToLibrary: () => void;
 }
 
-const FILTER_PRESETS: Array<{ id: FilterPreset; label: string; desc: string }> = [
-  { id: 'original', label: 'Original', desc: 'Natural unadjusted photo' },
-  { id: 'magic_color', label: 'Magic Color', desc: 'White paper + vivid ink' },
-  { id: 'magic_hd', label: 'Magic HD', desc: 'Flattens glare & colour cast' },
-  { id: 'lighten', label: 'Lighten', desc: 'Soft exposure boost' },
-  { id: 'grayscale', label: 'Grayscale', desc: 'Clean neutral monochrome' },
-  { id: 'bw', label: 'B&W', desc: 'Adaptive photocopy' },
-  { id: 'bw_sharp', label: 'B&W Sharp', desc: 'Crisp high-contrast text' },
-  { id: 'shadow_remove', label: 'No Shadow', desc: 'Even illumination lift' },
-];
-
 const WATERMARK_COLORS = ['#0f172a', '#0f766e', '#b91c1c', '#1d4ed8', '#64748b'];
 const STROKE_SIZE_MAP = {
   thin: { hl: 0.012, pen: 0.003 },
@@ -144,6 +134,12 @@ type PointerDragState =
       startY: number;
       origAnn: AnnotationItem;
     };
+
+// Device class does not change between renders; keep the UA test out of the
+// render path of a component that owns ~45 pieces of state.
+const IS_MOBILE_DEVICE =
+  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+  window.matchMedia('(max-width: 768px)').matches;
 
 export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   document,
@@ -215,7 +211,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
   const [mobileMarkupSection, setMobileMarkupSection] = useState<'sign' | 'text' | 'shapes' | 'draw'>('sign');
 
   // Gesture zoom & swipe refs
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || window.matchMedia('(max-width: 768px)').matches;
+  const isMobile = IS_MOBILE_DEVICE;
   const stageViewportRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const [stageDims, setStageDims] = useState<{ width: number; height: number }>({
@@ -934,7 +930,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           title: document.title,
           text: activePage.ocrText
             ? activePage.ocrText.slice(0, 180)
-            : `${document.title} — Page ${safeIdx + 1}`,
+            : `${document.title} · Page ${safeIdx + 1}`,
           files: [file],
         };
         if (!nav.canShare || nav.canShare({ files: [file] })) {
@@ -1287,14 +1283,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
   return (
     <div
-      className="flex flex-1 min-h-0 flex-col overflow-hidden bg-slate-100"
+      className="flex flex-1 min-h-0 flex-col overflow-hidden bg-surface-subtle"
       data-testid="document-editor"
       data-editor-mode={editorMode}
       data-active-filter={activePage.filter}
       data-annotations-count={activePage.annotations.length}
     >
-      {/* Contextual Top Header — Clean View Mode vs Rich Edit Mode */}
-      <div className="flex shrink-0 h-12 lg:h-auto items-center justify-between gap-2 border-b border-slate-200 bg-white px-2.5 lg:px-5 lg:py-2.5">
+      {/* Contextual Top Header - Clean View Mode vs Rich Edit Mode */}
+      <div className="flex shrink-0 h-12 lg:h-auto items-center justify-between gap-2 border-b border-line bg-surface px-2.5 lg:px-5 lg:py-2.5">
         {editorMode === 'view' ? (
           <>
             <div className="flex items-center gap-1.5 lg:gap-3 min-w-0 flex-1">
@@ -1310,7 +1306,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 data-testid={!isDraftScan && onBackToProject ? 'view-back-project-btn' : 'view-back-library-btn'}
                 aria-label={!isDraftScan && onBackToProject ? 'Back to project' : 'Back to library'}
-                className="inline-flex h-11 lg:h-auto min-w-[44px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg lg:border lg:border-slate-200 px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer shrink-0"
+                className="inline-flex h-11 lg:h-auto min-w-[44px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg lg:border lg:border-line px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer shrink-0"
               >
                 <ArrowLeft className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">
@@ -1319,8 +1315,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               </button>
 
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-sm font-bold text-slate-900">{document.title}</h1>
-                <p className="text-[11px] font-mono-tabular text-slate-500">
+                <h1 className="truncate text-sm font-bold text-ink">{document.title}</h1>
+                <p className="text-[11px] font-mono-tabular text-ink-muted">
                   Page {safeIdx + 1} of {document.pages.length}
                   <span className="hidden sm:inline">
                     {' '}
@@ -1334,7 +1330,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               {(savedNotice || shareNotice) && (
                 <span
                   role="status"
-                  className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-teal-700 mr-1"
+                  className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-accent-strong mr-1"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>{shareNotice || 'Saved'}</span>
@@ -1353,11 +1349,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 aria-pressed={viewOcrOpen}
                 className={`hidden lg:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
                   viewOcrOpen
-                    ? 'border-teal-600 bg-teal-50 text-teal-800'
-                    : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                    ? 'border-accent bg-accent-soft text-accent-text'
+                    : 'border-line-strong bg-surface text-ink-strong hover:bg-surface-muted'
                 }`}
               >
-                <ScanText className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                <ScanText className="h-3.5 w-3.5 text-accent-strong" aria-hidden="true" />
                 <span>OCR</span>
               </button>
 
@@ -1365,9 +1361,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={enterEditMode}
                 data-testid="enter-edit-mode-btn"
-                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-900 hover:bg-slate-50 active:scale-[0.98] cursor-pointer"
+                className="hidden lg:inline-flex items-center gap-1.5 rounded-lg border border-line-strong bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink hover:bg-surface-muted active:scale-[0.98] cursor-pointer"
               >
-                <Pencil className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                <Pencil className="h-3.5 w-3.5 text-accent-strong" aria-hidden="true" />
                 <span>Edit</span>
               </button>
 
@@ -1384,9 +1380,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 data-testid="view-share-btn"
                 aria-label="Share current page"
-                className="inline-flex h-9 lg:h-auto min-w-[38px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border border-slate-200 lg:border-slate-300 bg-white px-2.5 lg:px-3 lg:py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
+                className="inline-flex h-9 lg:h-auto min-w-[38px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border border-line lg:border-line-strong bg-surface px-2.5 lg:px-3 lg:py-1.5 text-xs font-semibold text-ink-strong hover:bg-surface-muted active:scale-95 disabled:opacity-50 cursor-pointer shrink-0"
               >
-                <Share2 className="h-4 w-4 lg:h-3.5 lg:w-3.5 text-slate-700" aria-hidden="true" />
+                <Share2 className="h-4 w-4 lg:h-3.5 lg:w-3.5 text-ink-soft" aria-hidden="true" />
                 <span className="hidden sm:inline">Share</span>
               </button>
 
@@ -1399,14 +1395,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 data-testid="view-export-btn"
                 aria-label="Export document"
                 title="Export"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-teal-600 text-white hover:bg-teal-700 active:scale-[0.98] cursor-pointer shrink-0"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-accent text-white hover:bg-accent-strong active:scale-[0.98] cursor-pointer shrink-0"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
           </>
         ) : (
-          /* EDIT MODE TOP BAR — Cancel + Title + Compare + Save in top nav on both Mobile & Desktop */
+          /* EDIT MODE TOP BAR - Cancel + Title + Compare + Save in top nav on both Mobile & Desktop */
           <>
             <div className="flex items-center gap-1.5 lg:gap-3 min-w-0 flex-1">
               <button
@@ -1414,7 +1410,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 onClick={handleCancelEdits}
                 data-testid="cancel-edits-btn"
                 aria-label="Cancel editing"
-                className="inline-flex h-10 lg:h-auto items-center justify-center gap-1 rounded-xl lg:rounded-lg lg:border lg:border-slate-200 px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 cursor-pointer shrink-0"
+                className="inline-flex h-10 lg:h-auto items-center justify-center gap-1 rounded-xl lg:rounded-lg lg:border lg:border-line px-2.5 lg:px-3 lg:py-1.5 text-xs font-medium text-ink-muted hover:bg-surface-muted cursor-pointer shrink-0"
               >
                 <X className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
                 <span className="hidden sm:inline">Cancel</span>
@@ -1435,12 +1431,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       onUpdateDocument({ ...document, title: trimmed, updatedAt: Date.now() });
                     }
                   }}
-                  className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-slate-200 px-2.5 py-1 text-sm font-bold text-slate-900 focus:border-teal-600 focus:outline-none"
+                  className="min-w-0 flex-1 max-w-xs truncate rounded-lg border border-line px-2.5 py-1 text-sm font-bold text-ink focus:border-accent focus:outline-none"
                 />
                 {document.pages.length > 1 && (
                   <span
                     data-testid="edit-mode-page-indicator"
-                    className="shrink-0 font-mono-tabular text-[11px] font-semibold text-slate-500 whitespace-nowrap"
+                    className="shrink-0 font-mono-tabular text-[11px] font-semibold text-ink-muted whitespace-nowrap"
                   >
                     {safeIdx + 1}/{document.pages.length}
                   </span>
@@ -1458,7 +1454,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 data-testid="edit-export-btn"
                 aria-label="Export document"
                 title="Export"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 active:scale-[0.98] cursor-pointer shrink-0"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-surface text-ink-soft hover:bg-surface-muted active:scale-[0.98] cursor-pointer shrink-0"
               >
                 <Download className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1469,8 +1465,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 aria-label={compareOriginal ? 'Show enhanced scan' : 'Compare with original photo'}
                 className={`inline-flex h-9 lg:h-auto min-w-[36px] lg:min-w-0 items-center justify-center gap-1.5 rounded-xl lg:rounded-lg border px-2 lg:px-3 lg:py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                   compareOriginal
-                    ? 'border-teal-600 bg-teal-50 text-teal-800'
-                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    ? 'border-accent bg-accent-soft text-accent-text'
+                    : 'border-line bg-surface text-ink-soft hover:bg-surface-muted'
                 }`}
               >
                 <Eye className="h-4 w-4 lg:h-3.5 lg:w-3.5" aria-hidden="true" />
@@ -1483,7 +1479,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={() => handleRotate(90)}
                 aria-label="Rotate page 90 degrees"
-                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Rotate</span>
@@ -1497,7 +1493,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 aria-label="Re-crop perspective corners"
                 data-testid="edit-recrop-btn"
-                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="hidden lg:inline-flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 <Crop className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Crop</span>
@@ -1507,7 +1503,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 onClick={handleSaveEdits}
                 data-testid="save-edits-btn"
-                className="inline-flex h-9 lg:h-auto items-center gap-1.5 rounded-xl lg:rounded-lg bg-teal-600 px-3 lg:px-4 lg:py-1.5 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer shrink-0"
+                className="inline-flex h-9 lg:h-auto items-center gap-1.5 rounded-xl lg:rounded-lg bg-accent px-3 lg:px-4 lg:py-1.5 text-xs font-bold text-white hover:bg-accent-strong active:scale-[0.98] transition-all cursor-pointer shrink-0"
               >
                 <Check className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Save</span>
@@ -1519,14 +1515,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
       {/* Main Content Stage */}
       <div className="relative flex flex-1 min-h-0 flex-col overflow-hidden lg:flex-row">
-        {/* Desktop Left Page Thumbnail Rail — Shown in VIEW MODE only */}
+        {/* Desktop Left Page Thumbnail Rail - Shown in VIEW MODE only */}
         {editorMode === 'view' && (
           <aside
             data-testid="view-pages-rail"
-            className="hidden lg:flex w-48 shrink-0 flex-col items-stretch gap-3 overflow-y-auto border-r border-slate-200 bg-white p-3"
+            className="hidden lg:flex w-48 shrink-0 flex-col items-stretch gap-3 overflow-y-auto border-r border-line bg-surface p-3"
           >
             <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-semibold text-slate-600">
+              <span className="text-xs font-semibold text-ink-muted">
                 Pages ({document.pages.length})
               </span>
             </div>
@@ -1563,17 +1559,17 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   }}
                   className={`group relative flex shrink-0 flex-col rounded-lg border p-1.5 transition-all ${
                     isDropTarget
-                      ? 'border-teal-600 ring-2 ring-teal-500/35 bg-teal-50/70'
+                      ? 'border-accent ring-2 ring-teal-500/35 bg-accent-soft/70'
                       : idx === safeIdx
-                        ? 'border-teal-600 bg-teal-50/40'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-accent bg-accent-soft/40'
+                        : 'border-line bg-surface hover:border-line-strong'
                   } ${draggedPageIdx === idx ? 'opacity-50' : ''}`}
                 >
                   <button
                     type="button"
                     onClick={() => setActivePageIdx(idx)}
                     aria-label={`Select page ${idx + 1}`}
-                    className="overflow-hidden rounded bg-slate-100 cursor-pointer"
+                    className="overflow-hidden rounded bg-surface-subtle cursor-pointer"
                   >
                     <img
                       src={p.thumbnailDataUrl || p.processedDataUrl}
@@ -1584,9 +1580,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </button>
 
                   <div className="mt-1.5 flex items-center justify-between px-1">
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono-tabular font-medium text-slate-600">
+                    <span className="inline-flex items-center gap-1 text-[11px] font-mono-tabular font-medium text-ink-muted">
                       {document.pages.length > 1 && (
-                        <GripVertical className="h-3 w-3 text-slate-300 group-hover:text-slate-500 cursor-grab" aria-hidden="true" />
+                        <GripVertical className="h-3 w-3 text-slate-300 group-hover:text-ink-muted cursor-grab" aria-hidden="true" />
                       )}
                       <span>P{idx + 1}</span>
                     </span>
@@ -1596,7 +1592,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         disabled={idx === 0}
                         onClick={() => handleMovePage(idx, -1)}
                         aria-label={`Move page ${idx + 1} up`}
-                        className="rounded p-0.5 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                        className="rounded p-0.5 text-ink-faint hover:text-ink-soft disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowUp className="h-3 w-3" aria-hidden="true" />
                       </button>
@@ -1605,7 +1601,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         disabled={idx === document.pages.length - 1}
                         onClick={() => handleMovePage(idx, 1)}
                         aria-label={`Move page ${idx + 1} down`}
-                        className="rounded p-0.5 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                        className="rounded p-0.5 text-ink-faint hover:text-ink-soft disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowDown className="h-3 w-3" aria-hidden="true" />
                       </button>
@@ -1614,7 +1610,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           type="button"
                           onClick={() => handleDeletePage(idx)}
                           aria-label={`Delete page ${idx + 1}`}
-                          className="rounded p-0.5 text-slate-400 hover:text-red-600 cursor-pointer"
+                          className="rounded p-0.5 text-ink-faint hover:text-danger cursor-pointer"
                         >
                           <Trash2 className="h-3 w-3" aria-hidden="true" />
                         </button>
@@ -1629,7 +1625,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               type="button"
               data-testid="view-add-page-btn"
               onClick={onAddPagesToDoc}
-              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-3 text-xs font-medium text-slate-600 hover:border-teal-600 hover:text-teal-700 cursor-pointer"
+              className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-dashed border-line-strong px-3 py-3 text-xs font-medium text-ink-muted hover:border-accent hover:text-accent-strong cursor-pointer"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               <span>Add Page</span>
@@ -1657,7 +1653,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 )}
                 {!processingPage && editorMode === 'edit' && drawTool !== 'none' && (
                   <span className="text-amber-300 font-medium">
-                    Drawing ({drawTool}) — drag on page
+                    Drawing ({drawTool}) · drag on page
                   </span>
                 )}
                 {Math.abs(zoomScale - 1) > 0.04 && (
@@ -1672,7 +1668,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     className="inline-flex items-center gap-1.5 font-mono-tabular text-teal-300 hover:text-white cursor-pointer"
                   >
                     <span>{Math.round(zoomScale * 100)}%</span>
-                    <span className="text-slate-400">· Reset</span>
+                    <span className="text-ink-faint">· Reset</span>
                   </button>
                 )}
               </div>
@@ -1694,7 +1690,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 aria-label="Previous page"
                 className={`${
                   editorMode === 'view' ? 'flex' : 'hidden lg:flex'
-                } absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-800 shadow-md backdrop-blur-md hover:bg-white active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
+                } absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-line/80 bg-surface/90 text-ink-strong shadow-md backdrop-blur-md hover:bg-surface active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
               >
                 <ChevronLeft className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1711,7 +1707,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 aria-label="Next page"
                 className={`${
                   editorMode === 'view' ? 'flex' : 'hidden lg:flex'
-                } absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-slate-200/80 bg-white/90 text-slate-800 shadow-md backdrop-blur-md hover:bg-white active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
+                } absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-20 h-10 w-10 items-center justify-center rounded-full border border-line/80 bg-surface/90 text-ink-strong shadow-md backdrop-blur-md hover:bg-surface active:scale-95 disabled:opacity-25 disabled:cursor-default transition-all cursor-pointer`}
               >
                 <ChevronRight className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -1756,7 +1752,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }
                   : {}),
               }}
-              className={`relative w-full max-w-[520px] bg-white ring-1 ring-slate-900/10 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.22)] select-none touch-none ${
+              className={`relative w-full max-w-[520px] bg-surface ring-1 ring-slate-900/10 shadow-[0_14px_38px_-12px_rgba(15,23,42,0.22)] select-none touch-none ${
                 swipeOffsetX !== 0 ? 'transition-none' : 'transition-transform duration-150 ease-out'
               } ${
                 editorMode === 'edit' && drawTool !== 'none'
@@ -1851,7 +1847,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             ? (e) => {
                                 if (drawTool !== 'none' || isInlineEditing) return;
                                 e.stopPropagation();
-                                // Selecting/dragging ONLY selects the overlay — NEVER auto-opens Markup drawer
+                                // Selecting/dragging ONLY selects the overlay - NEVER auto-opens Markup drawer
                                 setSelectedAnnId(ann.id);
                                 pointerDragRef.current = {
                                   kind: 'move',
@@ -1998,7 +1994,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   color: ann.color || '#b91c1c',
                                   fontSize: `${scaledFontPx}px`,
                                 }}
-                                className="w-full rounded bg-white/95 px-1 font-bold leading-tight outline-2 outline-teal-500"
+                                className="w-full rounded bg-surface/95 px-1 font-bold leading-tight outline-2 outline-teal-500"
                               />
                             ) : (
                               <div
@@ -2021,7 +2017,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             {!isInlineEditing && (
                               <div
                                 onPointerDown={(e) => e.stopPropagation()}
-                                className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-1.5 py-0.5 shadow-lg backdrop-blur-xs"
+                                className="absolute -top-9 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 rounded-full border border-line bg-surface/95 px-1.5 py-0.5 shadow-lg backdrop-blur-xs"
                               >
                                 <button
                                   type="button"
@@ -2031,12 +2027,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                     openSelectedOverlayEditor(ann);
                                   }}
                                   aria-label="Edit overlay properties"
-                                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 cursor-pointer whitespace-nowrap"
+                                  className="inline-flex h-6 items-center gap-1 rounded-full px-2 text-[11px] font-semibold text-ink-strong hover:bg-surface-subtle cursor-pointer whitespace-nowrap"
                                 >
-                                  <Pencil className="h-3 w-3 text-teal-600" aria-hidden="true" />
+                                  <Pencil className="h-3 w-3 text-accent" aria-hidden="true" />
                                   <span>Edit</span>
                                 </button>
-                                <span className="h-3.5 w-px bg-slate-200" aria-hidden="true" />
+                                <span className="h-3.5 w-px bg-surface-subtle" aria-hidden="true" />
                                 <button
                                   type="button"
                                   data-testid="overlay-delete-action-btn"
@@ -2045,7 +2041,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                     removeAnnotation(ann.id);
                                   }}
                                   aria-label="Delete selected annotation"
-                                  className="flex h-6 w-6 items-center justify-center rounded-full text-red-600 hover:bg-red-50 cursor-pointer"
+                                  className="flex h-6 w-6 items-center justify-center rounded-full text-danger hover:bg-danger-soft cursor-pointer"
                                 >
                                   <Trash2 className="h-3 w-3" aria-hidden="true" />
                                 </button>
@@ -2074,7 +2070,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   // Ignore capture refusal in synthetic/touch environments
                                 }
                               }}
-                              className="absolute -top-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
+                              className="absolute -top-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-accent shadow-md cursor-nwse-resize touch-none"
                             />
 
                             {/* Top-Right Corner Handle */}
@@ -2099,7 +2095,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   // Ignore capture refusal in synthetic/touch environments
                                 }
                               }}
-                              className="absolute -top-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
+                              className="absolute -top-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-accent shadow-md cursor-nesw-resize touch-none"
                             />
 
                             {/* Bottom-Left Corner Handle (Left-side resize!) */}
@@ -2124,7 +2120,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   // Ignore capture refusal in synthetic/touch environments
                                 }
                               }}
-                              className="absolute -bottom-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nesw-resize touch-none"
+                              className="absolute -bottom-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-accent shadow-md cursor-nesw-resize touch-none"
                             />
 
                             {/* Bottom-Right Corner Handle */}
@@ -2149,7 +2145,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   // Ignore capture refusal in synthetic/touch environments
                                 }
                               }}
-                              className="absolute -bottom-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-teal-600 shadow-md cursor-nwse-resize touch-none"
+                              className="absolute -bottom-2.5 -right-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-accent shadow-md cursor-nwse-resize touch-none"
                             />
 
                             {/* East Edge Width Handle */}
@@ -2174,9 +2170,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                   // Ignore capture refusal in synthetic/touch environments
                                 }
                               }}
-                              className="absolute -right-2 top-1/2 -translate-y-1/2 flex h-7 w-4 items-center justify-center rounded-full border border-white bg-teal-600 shadow cursor-ew-resize touch-none"
+                              className="absolute -right-2 top-1/2 -translate-y-1/2 flex h-7 w-4 items-center justify-center rounded-full border border-white bg-accent shadow cursor-ew-resize touch-none"
                             >
-                              <span className="h-3 w-0.5 rounded-full bg-white" />
+                              <span className="h-3 w-0.5 rounded-full bg-surface" />
                             </div>
                           </>
                         )}
@@ -2226,16 +2222,16 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           {editorMode === 'view' && viewPagesOpen && (
             <div
               data-testid="view-mobile-pages-drawer"
-              className="lg:hidden shrink-0 border-t border-slate-200 bg-white px-4 py-3 animate-sheet-up"
+              className="lg:hidden shrink-0 border-t border-line bg-surface px-4 py-3 animate-sheet-up"
             >
               <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-900">
+                <span className="text-xs font-bold text-ink">
                   Pages ({document.pages.length}) · Drag to reorder
                 </span>
                 <button
                   type="button"
                   onClick={() => setViewPagesOpen(false)}
-                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-ink-muted hover:bg-surface-subtle cursor-pointer"
                 >
                   <ChevronDown className="h-4 w-4" aria-hidden="true" />
                   <span>Close</span>
@@ -2269,10 +2265,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     }}
                     className={`relative flex shrink-0 flex-col items-center rounded-xl border p-1.5 transition-all ${
                       dragOverPageIdx === idx && draggedPageIdx !== idx
-                        ? 'border-teal-600 ring-2 ring-teal-500/35 bg-teal-50'
+                        ? 'border-accent ring-2 ring-teal-500/35 bg-accent-soft'
                         : idx === safeIdx
-                          ? 'border-teal-600 bg-teal-50'
-                          : 'border-slate-200'
+                          ? 'border-accent bg-accent-soft'
+                          : 'border-line'
                     }`}
                   >
                     <button
@@ -2286,7 +2282,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         referrerPolicy="no-referrer"
                         className="h-20 w-16 rounded object-cover"
                       />
-                      <span className="mt-1 block text-[11px] font-mono-tabular text-slate-700">
+                      <span className="mt-1 block text-[11px] font-mono-tabular text-ink-soft">
                         P{idx + 1}
                       </span>
                     </button>
@@ -2305,7 +2301,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 <button
                   type="button"
                   onClick={onAddPagesToDoc}
-                  className="flex h-24 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 text-xs font-medium text-slate-600"
+                  className="flex h-24 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-xs font-medium text-ink-muted"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span>Add</span>
@@ -2351,11 +2347,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           />
         )}
 
-        {/* Desktop Right Inspector Sidebar — ONLY shown in EDIT MODE (Enhance / Markup / Watermark) */}
+        {/* Desktop Right Inspector Sidebar - ONLY shown in EDIT MODE (Enhance / Markup / Watermark) */}
         {editorMode === 'edit' && (
-          <aside className="hidden lg:flex w-92 shrink-0 flex-col border-l border-slate-200 bg-white">
+          <aside className="hidden lg:flex w-92 shrink-0 flex-col border-l border-line bg-surface">
             {/* 3 Inspector Mode Tabs (NO OCR / Pages in Edit Mode) */}
-            <div className="grid grid-cols-3 border-b border-slate-200 bg-slate-50 p-1 gap-1">
+            <div className="grid grid-cols-3 border-b border-line bg-surface-muted p-1 gap-1">
               {(
                 [
                   { id: 'enhance', label: 'Enhance', icon: Wand2 },
@@ -2374,7 +2370,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       if (tab.id !== 'markup') setDrawTool('none');
                     }}
                     className={`flex flex-col items-center justify-center gap-1 rounded-md py-2 text-[11px] font-semibold transition-colors cursor-pointer ${
-                      active ? 'bg-white text-teal-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                      active ? 'bg-surface text-accent-strong shadow-xs' : 'text-ink-muted hover:text-ink'
                     }`}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -2390,12 +2386,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 <div className="flex flex-col gap-3.5">
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">Enhancement Presets</span>
+                      <span className="text-xs font-semibold text-ink-soft">Enhancement Presets</span>
                       {document.pages.length > 1 && (
                         <button
                           type="button"
                           onClick={handleApplyFilterAllPages}
-                          className="text-xs font-medium text-teal-700 hover:underline cursor-pointer"
+                          className="text-xs font-medium text-accent-strong hover:underline cursor-pointer"
                         >
                           Apply to All Pages
                         </button>
@@ -2411,12 +2407,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             onClick={() => handleFilterClick(preset.id)}
                             className={`flex flex-col rounded-lg border p-2 text-left transition-colors cursor-pointer ${
                               active
-                                ? 'border-teal-600 bg-teal-50 text-teal-900'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                ? 'border-accent bg-accent-soft text-accent-text'
+                                : 'border-line bg-surface text-ink-soft hover:bg-surface-muted'
                             }`}
                           >
                             <span className="text-xs font-semibold">{preset.label}</span>
-                            <span className="mt-0.5 text-[10px] leading-tight text-slate-500">
+                            <span className="mt-0.5 text-[10px] leading-tight text-ink-muted">
                               {preset.desc}
                             </span>
                           </button>
@@ -2426,15 +2422,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   {/* Orientation */}
-                  <div className="border-t border-slate-100 pt-3">
+                  <div className="border-t border-line-soft pt-3">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">Orientation</span>
+                      <span className="text-xs font-semibold text-ink-soft">Orientation</span>
                       {document.pages.length > 1 && (
                         <button
                           type="button"
                           data-testid="desktop-apply-orientation-all"
                           onClick={handleApplyOrientationAllPages}
-                          className="text-xs font-medium text-teal-700 hover:underline cursor-pointer"
+                          className="text-xs font-medium text-accent-strong hover:underline cursor-pointer"
                         >
                           Apply to All Pages
                         </button>
@@ -2444,7 +2440,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRotate(-90)}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-line py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
                       >
                         <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>-90°</span>
@@ -2452,7 +2448,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRotate(90)}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-line py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
                       >
                         <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>+90°</span>
@@ -2460,7 +2456,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={handleFlip}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-line py-1.5 text-xs font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
                       >
                         <FlipHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Flip</span>
@@ -2469,15 +2465,15 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   {/* Background Finish */}
-                  <div className="border-t border-slate-100 pt-3">
+                  <div className="border-t border-line-soft pt-3">
                     <div className="mb-1.5 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">Background Finish</span>
+                      <span className="text-xs font-semibold text-ink-soft">Background Finish</span>
                       {document.pages.length > 1 && (
                         <button
                           type="button"
                           data-testid="desktop-apply-bg-all"
                           onClick={handleApplyBackgroundAllPages}
-                          className="text-xs font-medium text-teal-700 hover:underline cursor-pointer"
+                          className="text-xs font-medium text-accent-strong hover:underline cursor-pointer"
                         >
                           Apply to All Pages
                         </button>
@@ -2494,12 +2490,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             onClick={() => handleBackgroundChange(bg.value)}
                             className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-semibold cursor-pointer ${
                               activeBg
-                                ? 'border-teal-600 bg-teal-50 text-teal-900'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                ? 'border-accent bg-accent-soft text-accent-text'
+                                : 'border-line bg-surface text-ink-soft hover:bg-surface-muted'
                             }`}
                           >
                             <span
-                              className="h-3 w-3 rounded-sm border border-slate-300"
+                              className="h-3 w-3 rounded-sm border border-line-strong"
                               style={
                                 bg.value === 'transparent'
                                   ? {
@@ -2514,7 +2510,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           </button>
                         );
                       })}
-                      <label className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 cursor-pointer">
+                      <label className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2 py-1 text-[11px] font-medium text-ink-muted cursor-pointer">
                         <span>Custom</span>
                         <input
                           type="color"
@@ -2534,10 +2530,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   {/* Fine-Tune Sliders */}
-                  <div className="border-t border-slate-100 pt-3 flex flex-col gap-2.5">
+                  <div className="border-t border-line-soft pt-3 flex flex-col gap-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                        <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+                        <SlidersHorizontal className="h-3.5 w-3.5 text-ink-faint" aria-hidden="true" />
                         <span>Fine-Tune Adjustments</span>
                       </span>
                       <button
@@ -2551,7 +2547,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             activePage.flipH
                           )
                         }
-                        className="text-xs text-slate-500 hover:text-slate-900 cursor-pointer"
+                        className="text-xs text-ink-muted hover:text-ink cursor-pointer"
                       >
                         Reset
                       </button>
@@ -2568,8 +2564,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     ).map((ctrl) => (
                       <div key={ctrl.key}>
                         <div className="mb-1 flex items-center justify-between text-xs">
-                          <span className="text-slate-600">{ctrl.label}</span>
-                          <span className="font-mono-tabular text-slate-800">
+                          <span className="text-ink-muted">{ctrl.label}</span>
+                          <span className="font-mono-tabular text-ink-strong">
                             {activePage.adjustments[ctrl.key]}
                           </span>
                         </div>
@@ -2631,11 +2627,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">E-Signature</span>
+                      <span className="text-xs font-semibold text-ink-soft">E-Signature</span>
                       <button
                         type="button"
                         onClick={() => setSignatureModalOpen(true)}
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:underline cursor-pointer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-accent-strong hover:underline cursor-pointer"
                       >
                         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>New Signature</span>
@@ -2646,7 +2642,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => setSignatureModalOpen(true)}
-                        className="w-full rounded-lg border border-dashed border-slate-300 bg-slate-50 py-4 text-xs font-medium text-slate-600 hover:border-teal-600 hover:text-teal-700 cursor-pointer"
+                        className="w-full rounded-lg border border-dashed border-line-strong bg-surface-muted py-4 text-xs font-medium text-ink-muted hover:border-accent hover:text-accent-strong cursor-pointer"
                       >
                         Draw or Type Your First Signature
                       </button>
@@ -2655,7 +2651,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         {savedSignatures.map((sig) => (
                           <div
                             key={sig.id}
-                            className="flex items-center justify-between rounded-lg border border-slate-200 p-2"
+                            className="flex items-center justify-between rounded-lg border border-line p-2"
                           >
                             <button
                               type="button"
@@ -2665,9 +2661,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               <img
                                 src={sig.dataUrl}
                                 alt={sig.label}
-                                className="h-8 w-20 object-contain bg-slate-50 rounded border border-slate-100"
+                                className="h-8 w-20 object-contain bg-surface-muted rounded border border-line-soft"
                               />
-                              <span className="text-xs font-medium text-slate-800 truncate">
+                              <span className="text-xs font-medium text-ink-strong truncate">
                                 Place &ldquo;{sig.label}&rdquo;
                               </span>
                             </button>
@@ -2675,7 +2671,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               type="button"
                               onClick={() => onDeleteSavedSignature(sig.id)}
                               aria-label={`Delete saved signature ${sig.label}`}
-                              className="p-1 text-slate-400 hover:text-red-600 cursor-pointer"
+                              className="p-1 text-ink-faint hover:text-danger cursor-pointer"
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
@@ -2686,8 +2682,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   {/* Geometric Shapes */}
-                  <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2">
-                    <span className="text-xs font-semibold text-slate-700">Shapes &amp; Callouts</span>
+                  <div className="border-t border-line-soft pt-3.5 flex flex-col gap-2">
+                    <span className="text-xs font-semibold text-ink-soft">Shapes &amp; Callouts</span>
                     <div className="grid grid-cols-5 gap-1.5">
                       {(
                         [
@@ -2705,9 +2701,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             type="button"
                             data-testid={`desktop-add-shape-${s.id}`}
                             onClick={() => addShapeAnnotation(s.id)}
-                            className="flex flex-col items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white py-2 text-[11px] font-medium text-slate-700 hover:border-teal-600 hover:bg-teal-50/40 cursor-pointer"
+                            className="flex flex-col items-center justify-center gap-1 rounded-lg border border-line bg-surface py-2 text-[11px] font-medium text-ink-soft hover:border-accent hover:bg-accent-soft/40 cursor-pointer"
                           >
-                            <Icon className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                            <Icon className="h-3.5 w-3.5 text-accent-strong" aria-hidden="true" />
                             <span>{s.label}</span>
                           </button>
                         );
@@ -2716,20 +2712,20 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   {/* Text Stamps & Redaction / White-Out */}
-                  <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2.5">
-                    <span className="text-xs font-semibold text-slate-700">Text &amp; Redaction</span>
+                  <div className="border-t border-line-soft pt-3.5 flex flex-col gap-2.5">
+                    <span className="text-xs font-semibold text-ink-soft">Text &amp; Redaction</span>
                     <div className="flex gap-2">
                       <input
                         type="text"
                         value={newTextInput}
                         onChange={(e) => setNewTextInput(e.target.value)}
                         aria-label="Stamp text"
-                        className="flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-900 focus:border-teal-600 focus:outline-none"
+                        className="flex-1 rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink focus:border-accent focus:outline-none"
                       />
                       <button
                         type="button"
                         onClick={addTextStamp}
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 cursor-pointer transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-accent dark:hover:bg-accent-strong cursor-pointer transition-colors"
                       >
                         <Type className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Add Text</span>
@@ -2740,7 +2736,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => addRedactionBox('#09090b')}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface py-2 text-xs font-medium text-ink-strong hover:bg-surface-muted cursor-pointer"
                       >
                         <Square className="h-3.5 w-3.5 fill-zinc-900" aria-hidden="true" />
                         <span>Blackout</span>
@@ -2748,23 +2744,23 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => addRedactionBox('#ffffff')}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 text-xs font-medium text-slate-800 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-line bg-surface py-2 text-xs font-medium text-ink-strong hover:bg-surface-muted cursor-pointer"
                       >
-                        <Eraser className="h-3.5 w-3.5 text-slate-600" aria-hidden="true" />
+                        <Eraser className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
                         <span>White-Out</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Freehand Draw Tools */}
-                  <div className="border-t border-slate-100 pt-3.5 flex flex-col gap-2.5">
+                  <div className="border-t border-line-soft pt-3.5 flex flex-col gap-2.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-700">Freehand Markup</span>
+                      <span className="text-xs font-semibold text-ink-soft">Freehand Markup</span>
                       {activePage.annotations.length > 0 && (
                         <button
                           type="button"
                           onClick={undoLastAnnotation}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-ink cursor-pointer"
                         >
                           <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
                           <span>Undo</span>
@@ -2780,8 +2776,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         }
                         className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium cursor-pointer ${
                           drawTool === 'highlighter'
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line text-ink-soft hover:bg-surface-muted'
                         }`}
                       >
                         <Highlighter className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2792,8 +2788,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         onClick={() => setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'))}
                         className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium cursor-pointer ${
                           drawTool === 'pen'
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line text-ink-soft hover:bg-surface-muted'
                         }`}
                       >
                         <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
@@ -2802,9 +2798,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     </div>
 
                     {drawTool !== 'none' && (
-                      <div className="flex flex-col gap-2 rounded-lg bg-slate-50 p-2.5">
+                      <div className="flex flex-col gap-2 rounded-lg bg-surface-muted p-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-medium text-slate-600">Color</span>
+                          <span className="text-[11px] font-medium text-ink-muted">Color</span>
                           <div className="flex items-center gap-1.5">
                             {(drawTool === 'highlighter'
                               ? ['#facc15', '#4ade80', '#38bdf8', '#f472b6']
@@ -2832,7 +2828,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         </div>
 
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-medium text-slate-600">Thickness</span>
+                          <span className="text-[11px] font-medium text-ink-muted">Thickness</span>
                           <div className="flex items-center gap-1">
                             {(['thin', 'med', 'thick'] as const).map((sz) => (
                               <button
@@ -2841,8 +2837,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                                 onClick={() => setStrokeSize(sz)}
                                 className={`rounded px-2 py-0.5 text-[11px] font-medium capitalize cursor-pointer transition-colors ${
                                   strokeSize === sz
-                                    ? 'bg-slate-900 text-white dark:bg-teal-600 dark:text-white'
-                                    : 'bg-white text-slate-600 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                                    ? 'bg-slate-900 text-white dark:bg-accent dark:text-white'
+                                    : 'bg-surface text-ink-muted border border-line dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
                                 }`}
                               >
                                 {sz}
@@ -2856,9 +2852,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                   {/* Active Overlays List */}
                   {activePage.annotations.length > 0 && (
-                    <div className="border-t border-slate-100 pt-3.5">
+                    <div className="border-t border-line-soft pt-3.5">
                       <div className="mb-2 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-700">
+                        <span className="text-xs font-semibold text-ink-soft">
                           Page Overlays ({activePage.annotations.length})
                         </span>
                         <button
@@ -2867,7 +2863,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             updateActivePage((p) => ({ ...p, annotations: [] }));
                             setSelectedAnnId(null);
                           }}
-                          className="text-xs text-red-600 hover:underline cursor-pointer"
+                          className="text-xs text-danger hover:underline cursor-pointer"
                         >
                           Clear All
                         </button>
@@ -2878,8 +2874,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             key={a.id}
                             className={`flex items-center justify-between rounded px-2.5 py-1.5 text-xs ${
                               selectedAnnId === a.id
-                                ? 'bg-teal-50 text-teal-950 font-semibold'
-                                : 'bg-slate-50 text-slate-700'
+                                ? 'bg-accent-soft text-accent-text font-semibold'
+                                : 'bg-surface-muted text-ink-soft'
                             }`}
                           >
                             <button
@@ -2896,7 +2892,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               type="button"
                               onClick={() => removeAnnotation(a.id)}
                               aria-label={`Remove ${a.type}`}
-                              className="text-slate-400 hover:text-red-600 cursor-pointer ml-2"
+                              className="text-ink-faint hover:text-danger cursor-pointer ml-2"
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             </button>
@@ -2911,7 +2907,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               {/* WATERMARK TAB */}
               {inspectorTab === 'watermark' && (
                 <div className="flex flex-col gap-4">
-                  <label className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-800 cursor-pointer">
+                  <label className="flex items-center justify-between rounded-lg border border-line px-3 py-2.5 text-sm font-medium text-ink-strong cursor-pointer">
                     <span>Enable Page Watermark</span>
                     <input
                       type="checkbox"
@@ -2922,7 +2918,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </label>
 
                   <div>
-                    <label htmlFor="wm-text" className="block text-xs font-medium text-slate-600 mb-1">
+                    <label htmlFor="wm-text" className="block text-xs font-medium text-ink-muted mb-1">
                       Watermark Text
                     </label>
                     <input
@@ -2930,12 +2926,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       type="text"
                       value={activePage.watermark.text}
                       onChange={(e) => updateWatermark({ text: e.target.value })}
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                      className="w-full rounded-lg border border-line px-3 py-2 text-sm text-ink focus:border-accent focus:outline-none"
                     />
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-700">Color</span>
+                    <span className="text-xs font-medium text-ink-soft">Color</span>
                     <div className="flex items-center gap-1.5">
                       {WATERMARK_COLORS.map((hex) => (
                         <button
@@ -2946,7 +2942,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           style={{ backgroundColor: hex }}
                           className={`h-6 w-6 rounded-full border-2 cursor-pointer ${
                             activePage.watermark.color === hex
-                              ? 'border-teal-600 scale-110'
+                              ? 'border-accent scale-110'
                               : 'border-white'
                           }`}
                         />
@@ -2954,7 +2950,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     </div>
                   </div>
 
-                  <label className="flex items-center justify-between text-xs font-medium text-slate-700 cursor-pointer">
+                  <label className="flex items-center justify-between text-xs font-medium text-ink-soft cursor-pointer">
                     <span>Tiled Pattern Across Page</span>
                     <input
                       type="checkbox"
@@ -2965,7 +2961,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </label>
 
                   <div>
-                    <div className="mb-1 flex justify-between text-xs text-slate-600">
+                    <div className="mb-1 flex justify-between text-xs text-ink-muted">
                       <span>Opacity</span>
                       <span className="font-mono-tabular">
                         {Math.round(activePage.watermark.opacity * 100)}%
@@ -2984,7 +2980,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   </div>
 
                   <div>
-                    <div className="mb-1 flex justify-between text-xs text-slate-600">
+                    <div className="mb-1 flex justify-between text-xs text-ink-muted">
                       <span>Rotation Angle</span>
                       <span className="font-mono-tabular">{activePage.watermark.angle}°</span>
                     </div>
@@ -3005,7 +3001,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       type="button"
                       data-testid="desktop-apply-watermark-all"
                       onClick={handleApplyWatermarkAllPages}
-                      className="min-h-[38px] rounded-xl border border-teal-200 bg-teal-50/70 px-3 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                      className="min-h-[38px] rounded-xl border border-accent-line bg-accent-soft/70 px-3 text-xs font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
                     >
                       Apply Watermark to All {document.pages.length} Pages
                     </button>
@@ -3018,11 +3014,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         )}
       </div>
 
-      {/* VIEW MODE MOBILE BOTTOM ACTION DOCK — clean 4-action bar (Share & Export live in Top Header) */}
+      {/* VIEW MODE MOBILE BOTTOM ACTION DOCK - clean 4-action bar (Share & Export live in Top Header) */}
       {editorMode === 'view' && (
         <div
           data-testid="view-mobile-bottom-dock"
-          className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
+          className="lg:hidden shrink-0 border-t border-line bg-surface pb-safe"
         >
           <div className="grid grid-cols-4 h-[58px] px-1">
             <button
@@ -3032,9 +3028,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 haptics.tap();
                 onAddPagesToDoc();
               }}
-              className="flex flex-col items-center justify-center min-h-[44px] text-slate-700 active:scale-95 transition-transform cursor-pointer"
+              className="flex flex-col items-center justify-center min-h-[44px] text-ink-soft active:scale-95 transition-transform cursor-pointer"
             >
-              <Plus className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <Plus className="h-4 w-4 text-accent-strong" aria-hidden="true" />
               <span className="mt-0.5 text-[10px] font-semibold">Add Page</span>
             </button>
 
@@ -3048,7 +3044,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               }}
               aria-pressed={viewOcrOpen}
               className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-                viewOcrOpen ? 'text-teal-700' : 'text-slate-700'
+                viewOcrOpen ? 'text-accent-strong' : 'text-ink-soft'
               }`}
             >
               <ScanText className="h-4 w-4" aria-hidden="true" />
@@ -3059,9 +3055,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               type="button"
               data-testid="mobile-view-edit-btn"
               onClick={enterEditMode}
-              className="flex flex-col items-center justify-center min-h-[44px] text-slate-900 active:scale-95 transition-transform cursor-pointer"
+              className="flex flex-col items-center justify-center min-h-[44px] text-ink active:scale-95 transition-transform cursor-pointer"
             >
-              <Pencil className="h-4 w-4 text-teal-700" aria-hidden="true" />
+              <Pencil className="h-4 w-4 text-accent-strong" aria-hidden="true" />
               <span className="mt-0.5 text-[10px] font-bold">Edit</span>
             </button>
 
@@ -3075,7 +3071,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
               }}
               aria-pressed={viewPagesOpen}
               className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-                viewPagesOpen ? 'text-teal-700' : 'text-slate-700'
+                viewPagesOpen ? 'text-accent-strong' : 'text-ink-soft'
               }`}
             >
               <Layers className="h-4 w-4" aria-hidden="true" />
@@ -3087,14 +3083,14 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
         </div>
       )}
 
-      {/* THEME-COMPATIBLE NATIVE MOBILE EDIT TOOL TRAY + DOCK — ONLY shown in EDIT MODE on mobile */}
+      {/* THEME-COMPATIBLE NATIVE MOBILE EDIT TOOL TRAY + DOCK - ONLY shown in EDIT MODE on mobile */}
       {editorMode === 'edit' && (
         <div
           data-testid="edit-mode-mobile-dock"
-          className="lg:hidden shrink-0 border-t border-slate-200 bg-white/95 backdrop-blur-md text-slate-800 shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.12)]"
+          className="lg:hidden shrink-0 border-t border-line bg-surface text-ink-strong shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.12)]"
         >
           {mobilePanelOpen && (
-            <div className="max-h-[46dvh] overflow-y-auto border-b border-slate-200 bg-white px-3.5 py-2.5 animate-sheet-up">
+            <div className="max-h-[46dvh] overflow-y-auto border-b border-line bg-surface px-3.5 py-2.5 animate-sheet-up">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {mobilePanel === 'enhance' && mobileFilterCustomOpen && (
@@ -3105,13 +3101,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         haptics.tap();
                         setMobileFilterCustomOpen(false);
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface-muted px-2.5 py-1 text-xs font-semibold text-ink-soft hover:bg-surface-subtle cursor-pointer"
                     >
                       <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Presets</span>
                     </button>
                   )}
-                  <span className="text-xs font-bold text-slate-900">
+                  <span className="text-xs font-bold text-ink">
                     {mobilePanel === 'crop'
                       ? 'Crop & Orientation'
                       : mobilePanel === 'enhance'
@@ -3132,7 +3128,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         haptics.tap();
                         setMobileFilterCustomOpen(true);
                       }}
-                      className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
                     >
                       <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Custom</span>
@@ -3144,7 +3140,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       setMobilePanelOpen(false);
                       setMobileFilterCustomOpen(false);
                     }}
-                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 cursor-pointer"
+                    className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-ink-muted hover:bg-surface-subtle hover:text-ink-strong cursor-pointer"
                   >
                     <ChevronDown className="h-4 w-4" aria-hidden="true" />
                     <span>Hide</span>
@@ -3163,7 +3159,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       setRecropQuad(activePage.quad);
                       setRecropOpen(true);
                     }}
-                    className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white shadow-2xs hover:bg-teal-700 active:scale-[0.98] cursor-pointer"
+                    className="flex min-h-[42px] w-full items-center justify-center gap-2 rounded-xl bg-accent px-3 text-xs font-bold text-white shadow-2xs hover:bg-accent-strong active:scale-[0.98] cursor-pointer"
                   >
                     <Crop className="h-4 w-4" aria-hidden="true" />
                     <span>Re-Crop Borders</span>
@@ -3173,7 +3169,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRotate(-90)}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-line bg-surface-muted text-xs font-semibold text-ink-soft hover:bg-surface-subtle cursor-pointer"
                     >
                       <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>-90°</span>
@@ -3181,7 +3177,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => handleRotate(90)}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-line bg-surface-muted text-xs font-semibold text-ink-soft hover:bg-surface-subtle cursor-pointer"
                     >
                       <RotateCw className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>+90°</span>
@@ -3189,7 +3185,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     <button
                       type="button"
                       onClick={handleFlip}
-                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                      className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl border border-line bg-surface-muted text-xs font-semibold text-ink-soft hover:bg-surface-subtle cursor-pointer"
                     >
                       <FlipHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
                       <span>Flip</span>
@@ -3201,7 +3197,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       type="button"
                       data-testid="mobile-apply-orientation-all"
                       onClick={handleApplyOrientationAllPages}
-                      className="flex min-h-[38px] items-center justify-center rounded-xl border border-teal-200 bg-teal-50/70 px-3 text-xs font-semibold text-teal-800 cursor-pointer"
+                      className="flex min-h-[38px] items-center justify-center rounded-xl border border-accent-line bg-accent-soft/70 px-3 text-xs font-semibold text-accent-text cursor-pointer"
                     >
                       Apply Rotation ({activePage.rotation}°) to All Pages
                     </button>
@@ -3228,10 +3224,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               className="flex shrink-0 flex-col items-center gap-1.5 min-w-[58px] transition-all active:scale-95 cursor-pointer"
                             >
                               <div
-                                className={`h-14 w-12 rounded-xl border-2 overflow-hidden bg-slate-100 shadow-xs ${
+                                className={`h-14 w-12 rounded-xl border-2 overflow-hidden bg-surface-subtle shadow-xs ${
                                   active
-                                    ? 'border-teal-600 ring-2 ring-teal-500/25'
-                                    : 'border-slate-200'
+                                    ? 'border-accent ring-2 ring-teal-500/25'
+                                    : 'border-line'
                                 }`}
                               >
                                 <img
@@ -3243,7 +3239,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               </div>
                               <span
                                 className={`text-[10px] font-semibold tracking-tight whitespace-nowrap ${
-                                  active ? 'text-teal-700' : 'text-slate-600'
+                                  active ? 'text-accent-strong' : 'text-ink-muted'
                                 }`}
                               >
                                 {preset.label}
@@ -3258,7 +3254,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           type="button"
                           data-testid="mobile-apply-filter-all"
                           onClick={handleApplyFilterAllPages}
-                          className="flex min-h-[40px] w-full items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+                          className="flex min-h-[40px] w-full items-center justify-center rounded-xl border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
                         >
                           Apply Filter to All {document.pages.length} Pages
                         </button>
@@ -3270,7 +3266,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       className="flex flex-col gap-3"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-slate-700">
+                        <span className="text-[11px] font-semibold text-ink-soft">
                           Paper Background
                         </span>
                         <button
@@ -3284,7 +3280,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                               activePage.flipH
                             )
                           }
-                          className="rounded-lg px-2 py-1 text-[11px] font-semibold text-teal-700 hover:bg-teal-50 cursor-pointer"
+                          className="rounded-lg px-2 py-1 text-[11px] font-semibold text-accent-strong hover:bg-accent-soft cursor-pointer"
                         >
                           Reset Sliders
                         </button>
@@ -3298,12 +3294,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             onClick={() => handleBackgroundChange(bg.value)}
                             className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer ${
                               (activePage.backgroundColor || '#ffffff') === bg.value
-                                ? 'border-teal-600 bg-teal-50 text-teal-900'
-                                : 'border-slate-200 bg-white text-slate-700'
+                                ? 'border-accent bg-accent-soft text-accent-text'
+                                : 'border-line bg-surface text-ink-soft'
                             }`}
                           >
                             <span
-                              className="h-3 w-3 rounded-sm border border-slate-300"
+                              className="h-3 w-3 rounded-sm border border-line-strong"
                               style={
                                 bg.value === 'transparent'
                                   ? {
@@ -3330,9 +3326,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           ] as const
                         ).map((ctrl) => (
                           <div key={ctrl.key}>
-                            <div className="mb-1 flex justify-between text-[11px] text-slate-600">
+                            <div className="mb-1 flex justify-between text-[11px] text-ink-muted">
                               <span>{ctrl.label}</span>
-                              <span className="font-mono-tabular font-semibold text-slate-800">
+                              <span className="font-mono-tabular font-semibold text-ink-strong">
                                 {activePage.adjustments[ctrl.key]}
                               </span>
                             </div>
@@ -3395,7 +3391,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   )}
 
                   {/* Compact Sub-Tab Strip: Sign | Text | Shapes | Draw */}
-                  <div className="grid grid-cols-4 gap-1 rounded-xl bg-slate-100 p-1">
+                  <div className="grid grid-cols-4 gap-1 rounded-xl bg-surface-subtle p-1">
                     {(
                       [
                         { id: 'sign', label: 'Sign' },
@@ -3413,8 +3409,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         }}
                         className={`rounded-lg py-1.5 text-[11px] font-semibold cursor-pointer transition-colors ${
                           mobileMarkupSection === sub.id
-                            ? 'bg-white text-teal-800 shadow-2xs'
-                            : 'text-slate-600'
+                            ? 'bg-surface text-accent-text shadow-2xs'
+                            : 'text-ink-muted'
                         }`}
                       >
                         {sub.label}
@@ -3427,7 +3423,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => setSignatureModalOpen(true)}
-                        className="inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-xl bg-teal-600 px-3 text-xs font-semibold text-white cursor-pointer"
+                        className="inline-flex min-h-[38px] shrink-0 items-center gap-1 rounded-xl bg-accent px-3 text-xs font-semibold text-white cursor-pointer"
                       >
                         <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>New Signature</span>
@@ -3437,7 +3433,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           key={sig.id}
                           type="button"
                           onClick={() => placeSignature(sig)}
-                          className="flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-800 cursor-pointer"
+                          className="flex min-h-[38px] shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface-muted px-2.5 py-1 text-xs font-medium text-ink-strong cursor-pointer"
                         >
                           <img src={sig.dataUrl} alt={sig.label} className="h-5 w-10 object-contain" />
                           <span>+ {sig.label}</span>
@@ -3453,12 +3449,12 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         value={newTextInput}
                         onChange={(e) => setNewTextInput(e.target.value)}
                         aria-label="Mobile stamp text"
-                        className="min-h-[38px] flex-1 rounded-xl border border-slate-200 px-2.5 text-xs text-slate-900 focus:border-teal-600 focus:outline-none"
+                        className="min-h-[38px] flex-1 rounded-xl border border-line px-2.5 text-xs text-ink focus:border-accent focus:outline-none"
                       />
                       <button
                         type="button"
                         onClick={() => addTextStamp()}
-                        className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-teal-600 dark:hover:bg-teal-700 cursor-pointer transition-colors"
+                        className="inline-flex min-h-[38px] items-center gap-1 rounded-xl bg-slate-900 px-3.5 text-xs font-semibold text-white hover:bg-slate-800 dark:bg-accent dark:hover:bg-accent-strong cursor-pointer transition-colors"
                       >
                         <Type className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Add</span>
@@ -3484,9 +3480,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                             type="button"
                             data-testid={`mobile-add-shape-${s.id}`}
                             onClick={() => addShapeAnnotation(s.id)}
-                            className="flex min-h-[42px] flex-col items-center justify-center gap-0.5 rounded-xl border border-slate-200 bg-white text-[10px] font-semibold text-slate-800 hover:bg-teal-50 cursor-pointer"
+                            className="flex min-h-[42px] flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface text-[10px] font-semibold text-ink-strong hover:bg-accent-soft cursor-pointer"
                           >
-                            <Icon className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
+                            <Icon className="h-3.5 w-3.5 text-accent-strong" aria-hidden="true" />
                             <span>{s.label}</span>
                           </button>
                         );
@@ -3499,7 +3495,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => addRedactionBox('#09090b')}
-                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-800 cursor-pointer"
+                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-line bg-surface text-[11px] font-medium text-ink-strong cursor-pointer"
                       >
                         <Square className="h-3 w-3 fill-zinc-900" aria-hidden="true" />
                         <span>Redact</span>
@@ -3507,7 +3503,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => addRedactionBox('#ffffff')}
-                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white text-[11px] font-medium text-slate-800 cursor-pointer"
+                        className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl border border-line bg-surface text-[11px] font-medium text-ink-strong cursor-pointer"
                       >
                         <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
                         <span>Erase</span>
@@ -3519,8 +3515,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         }
                         className={`flex min-h-[38px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium cursor-pointer ${
                           drawTool === 'highlighter'
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 bg-white text-slate-700'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line bg-surface text-ink-soft'
                         }`}
                       >
                         <Highlighter className="h-3.5 w-3.5" aria-hidden="true" />
@@ -3531,8 +3527,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                         onClick={() => setDrawTool((t) => (t === 'pen' ? 'none' : 'pen'))}
                         className={`flex min-h-[38px] items-center justify-center gap-1 rounded-xl border text-[11px] font-medium cursor-pointer ${
                           drawTool === 'pen'
-                            ? 'border-teal-600 bg-teal-50 text-teal-900'
-                            : 'border-slate-200 bg-white text-slate-700'
+                            ? 'border-accent bg-accent-soft text-accent-text'
+                            : 'border-line bg-surface text-ink-soft'
                         }`}
                       >
                         <PenTool className="h-3.5 w-3.5" aria-hidden="true" />
@@ -3543,13 +3539,13 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
                   {activePage.annotations.length > 0 && (
                     <div className="flex items-center justify-between pt-0.5 text-[11px]">
-                      <span className="text-slate-500">
+                      <span className="text-ink-muted">
                         {activePage.annotations.length} overlay(s)
                       </span>
                       <button
                         type="button"
                         onClick={undoLastAnnotation}
-                        className="inline-flex items-center gap-1 font-medium text-slate-700 cursor-pointer"
+                        className="inline-flex items-center gap-1 font-medium text-ink-soft cursor-pointer"
                       >
                         <Undo2 className="h-3 w-3" aria-hidden="true" />
                         <span>Undo Last</span>
@@ -3561,7 +3557,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
 
               {mobilePanel === 'watermark' && (
                 <div className="flex flex-col gap-3">
-                  <label className="flex min-h-[42px] items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3 text-sm font-medium text-slate-800">
+                  <label className="flex min-h-[42px] items-center justify-between rounded-xl border border-line bg-surface-muted/70 px-3 text-sm font-medium text-ink-strong">
                     <span>Enable Watermark</span>
                     <input
                       type="checkbox"
@@ -3575,10 +3571,10 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                     value={activePage.watermark.text}
                     onChange={(e) => updateWatermark({ text: e.target.value })}
                     aria-label="Mobile watermark text"
-                    className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                    className="min-h-[42px] w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink focus:border-accent focus:outline-none"
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-600">Color</span>
+                    <span className="text-xs font-medium text-ink-muted">Color</span>
                     <div className="flex items-center gap-2">
                       {WATERMARK_COLORS.map((hex) => (
                         <button
@@ -3589,8 +3585,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                           style={{ backgroundColor: hex }}
                           className={`h-6 w-6 rounded-full border-2 cursor-pointer ${
                             activePage.watermark.color === hex
-                              ? 'border-teal-600 ring-2 ring-teal-500/25'
-                              : 'border-slate-200'
+                              ? 'border-accent ring-2 ring-teal-500/25'
+                              : 'border-line'
                           }`}
                         />
                       ))}
@@ -3601,7 +3597,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       type="button"
                       data-testid="mobile-apply-watermark-all"
                       onClick={handleApplyWatermarkAllPages}
-                      className="min-h-[40px] rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800"
+                      className="min-h-[40px] rounded-xl border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent-text"
                     >
                       Apply Watermark to All Pages
                     </button>
@@ -3612,7 +3608,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           )}
 
           {/* Compact 5-Item Light-Theme Mobile Edit Action Dock matching crop screen height */}
-          <div className="bg-white/95 pb-safe">
+          <div className="bg-surface pb-safe">
             <div className="grid grid-cols-5 items-center px-1.5 py-1 gap-1">
               <button
                 type="button"
@@ -3631,8 +3627,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'crop'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-accent-soft text-accent-strong'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'
                 }`}
               >
                 <Crop className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -3657,8 +3653,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'enhance'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-accent-soft text-accent-strong'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'
                 }`}
               >
                 <Wand2 className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -3682,8 +3678,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'markup'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-accent-soft text-accent-strong'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'
                 }`}
               >
                 <PenTool className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -3707,8 +3703,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   mobilePanelOpen && mobilePanel === 'watermark'
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-accent-soft text-accent-strong'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'
                 }`}
               >
                 <Stamp className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -3730,8 +3726,8 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 }}
                 className={`flex min-h-[44px] flex-col items-center justify-center gap-0.5 rounded-xl active:scale-95 transition cursor-pointer ${
                   editOcrOpen
-                    ? 'bg-teal-50 text-teal-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-accent-soft text-accent-strong'
+                    : 'text-ink-muted hover:bg-surface-subtle hover:text-ink'
                 }`}
               >
                 <ScanText className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -3751,26 +3747,26 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           data-testid="adjust-perspective-crop-dialog"
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/55 p-0 sm:p-5 backdrop-blur-xs"
         >
-          <div className="flex w-full max-w-3xl max-h-[92dvh] flex-col rounded-t-3xl sm:rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-sheet-up">
-            <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-slate-300 sm:hidden" />
+          <div className="flex w-full max-w-3xl max-h-[92dvh] flex-col rounded-t-3xl sm:rounded-2xl border border-line bg-surface shadow-2xl overflow-hidden animate-sheet-up">
+            <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-line-strong sm:hidden" />
 
             {/* Header */}
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-5">
+            <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-3 sm:px-5">
               <button
                 type="button"
                 onClick={() => setRecropOpen(false)}
                 aria-label="Close crop dialog"
-                className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 cursor-pointer"
+                className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-muted hover:bg-surface-subtle cursor-pointer"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
-              <h2 className="text-sm sm:text-base font-bold text-slate-900">
+              <h2 className="text-sm sm:text-base font-bold text-ink">
                 Adjust Perspective Crop
               </h2>
               <button
                 type="button"
                 onClick={() => setRecropQuad(activePage.quad)}
-                className="rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                className="rounded-xl px-2.5 py-1.5 text-xs font-semibold text-ink-muted hover:bg-surface-subtle cursor-pointer"
               >
                 Reset
               </button>
@@ -3788,7 +3784,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
             </div>
 
             {/* Unified Crop Controls + Primary Apply Footer */}
-            <div className="shrink-0 border-t border-slate-200 bg-white px-4 pt-2.5 pb-[max(1.1rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col gap-2.5">
+            <div className="shrink-0 border-t border-line bg-surface px-4 pt-2.5 pb-[max(1.1rem,env(safe-area-inset-bottom))] sm:pb-4 flex flex-col gap-2.5">
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -3803,9 +3799,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       setDetectingQuad(false);
                     }
                   }}
-                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-teal-800 hover:bg-teal-50 disabled:opacity-50 cursor-pointer"
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-muted text-xs font-semibold text-accent-text hover:bg-accent-soft disabled:opacity-50 cursor-pointer"
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+                  <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
                   <span>{detectingQuad ? 'Detecting...' : 'Auto-Detect'}</span>
                 </button>
                 <button
@@ -3819,9 +3815,9 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                       { x: 0, y: 1 },
                     ]);
                   }}
-                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-line bg-surface-muted text-xs font-semibold text-ink-soft hover:bg-surface-subtle cursor-pointer"
                 >
-                  <Maximize2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+                  <Maximize2 className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
                   <span>Full Frame</span>
                 </button>
               </div>
@@ -3830,7 +3826,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 <button
                   type="button"
                   onClick={() => setRecropOpen(false)}
-                  className="min-h-[46px] rounded-xl border border-slate-200 px-4 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[46px] rounded-xl border border-line px-4 text-xs sm:text-sm font-semibold text-ink-soft hover:bg-surface-muted cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3838,7 +3834,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   type="button"
                   onClick={handleApplyRecrop}
                   data-testid="apply-recrop-btn"
-                  className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-5 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-teal-700 cursor-pointer"
+                  className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-accent px-5 text-xs sm:text-sm font-bold text-white shadow-sm hover:bg-accent-strong cursor-pointer"
                 >
                   <Check className="h-4 w-4" aria-hidden="true" />
                   <span>Apply Perspective Crop</span>
@@ -3869,11 +3865,11 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
           data-testid="save-discard-dialog"
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs"
         >
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
-            <h2 id="save-discard-title" className="text-base font-bold text-slate-900">
+          <div className="w-full max-w-sm rounded-2xl border border-line bg-surface p-5 shadow-2xl">
+            <h2 id="save-discard-title" className="text-base font-bold text-ink">
               {isDraftScan ? 'Save or Discard Scan?' : 'Save or Discard Changes?'}
             </h2>
-            <p className="mt-1.5 text-sm text-slate-600">
+            <p className="mt-1.5 text-sm text-ink-muted">
               {isDraftScan
                 ? 'Save this captured scan to your Library, or discard it without saving.'
                 : 'You have unsaved edits on this document. Would you like to keep them or discard?'}
@@ -3883,7 +3879,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 data-testid="confirm-save-btn"
                 onClick={handleSaveEdits}
-                className="min-h-[44px] w-full rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 cursor-pointer"
+                className="min-h-[44px] w-full rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong cursor-pointer"
               >
                 {isDraftScan ? 'Save to Library' : 'Save Changes'}
               </button>
@@ -3894,7 +3890,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                   haptics.warning();
                   performDiscard();
                 }}
-                className="min-h-[44px] w-full rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 cursor-pointer"
+                className="min-h-[44px] w-full rounded-xl border border-danger-line bg-danger-soft px-4 py-2 text-sm font-semibold text-danger hover:bg-danger-soft cursor-pointer"
               >
                 {isDraftScan ? 'Discard Scan' : 'Discard Changes'}
               </button>
@@ -3902,7 +3898,7 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
                 type="button"
                 data-testid="keep-editing-btn"
                 onClick={() => setConfirmDiscardOpen(false)}
-                className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                className="min-h-[44px] w-full rounded-xl border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-soft hover:bg-surface-muted cursor-pointer"
               >
                 Keep Editing
               </button>
@@ -3913,3 +3909,4 @@ export const DocumentEditor: React.FC<DocumentEditorProps> = ({
     </div>
   );
 };
+

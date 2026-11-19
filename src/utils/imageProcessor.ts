@@ -1002,7 +1002,7 @@ export function createSampleIdBackDataUrl(): string {
   // Address & issuing metadata
   ctx.fillStyle = '#0f172a';
   ctx.font = '700 22px "Plus Jakarta Sans", sans-serif';
-  ctx.fillText('REPUBLIC OF AETHEL — CIVIL REGISTRY', 48, 190);
+  ctx.fillText('REPUBLIC OF AETHEL · CIVIL REGISTRY', 48, 190);
 
   ctx.fillStyle = '#334155';
   ctx.font = '500 20px "DM Sans", sans-serif';

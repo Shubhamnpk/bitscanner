@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { loadAppSettings } from '../utils/settingsStore';
 
 export type HapticPatternName = 'tap' | 'shutter' | 'success' | 'warning';
@@ -44,11 +44,14 @@ export function useHaptics(enabled = true) {
   const success = useCallback(() => vibrate('success'), [vibrate]);
   const warning = useCallback(() => vibrate('warning'), [vibrate]);
 
-  return {
-    vibrate,
-    tap,
-    shutter,
-    success,
-    warning,
-  };
+  return useMemo(
+    () => ({
+      vibrate,
+      tap,
+      shutter,
+      success,
+      warning,
+    }),
+    [vibrate, tap, shutter, success, warning]
+  );
 }

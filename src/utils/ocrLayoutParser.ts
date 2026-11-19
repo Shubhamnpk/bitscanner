@@ -143,7 +143,7 @@ function splitDelimitedColumns(line: string): string[] | null {
   }
 
   // 4. Structured dash/en-dash separated item lines ("Service - 40 hrs - $6,000.00")
-  const dashParts = trimmed.split(/\s+[-–—]\s+/).map((s) => s.trim());
+  const dashParts = trimmed.split(/\s+[-–\u2014]\s+/).map((s) => s.trim());
   if (
     dashParts.length >= 3 ||
     (dashParts.length === 2 && /[$€£¥₹]\s*\d/.test(dashParts[1]))

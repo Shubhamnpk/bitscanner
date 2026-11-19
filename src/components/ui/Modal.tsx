@@ -29,7 +29,7 @@ export const Modal: React.FC<ModalProps> = ({
   title,
   description,
   icon: Icon,
-  iconClassName = 'bg-teal-50 text-teal-700',
+  iconClassName = 'bg-accent-soft text-accent-strong',
   children,
   footer,
   testId,
@@ -107,9 +107,9 @@ export const Modal: React.FC<ModalProps> = ({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="animate-sheet-up relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/25 outline-none sm:max-w-lg sm:rounded-3xl"
+        className="animate-sheet-up relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-line bg-surface shadow-2xl shadow-slate-900/25 outline-none sm:max-w-lg sm:rounded-3xl"
       >
-        <div className="flex items-start gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
+        <div className="flex items-start gap-3 border-b border-line-soft px-4 py-4 sm:px-5">
           {Icon && (
             <span
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClassName}`}
@@ -118,11 +118,11 @@ export const Modal: React.FC<ModalProps> = ({
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-base font-bold text-slate-900">
+            <h2 id={titleId} className="text-base font-bold text-ink">
               {title}
             </h2>
             {description && (
-              <p id={descriptionId} className="mt-0.5 text-xs leading-relaxed text-slate-500">
+              <p id={descriptionId} className="mt-0.5 text-xs leading-relaxed text-ink-muted">
                 {description}
               </p>
             )}
@@ -131,7 +131,7 @@ export const Modal: React.FC<ModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 cursor-pointer"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface-subtle hover:text-ink cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -140,7 +140,7 @@ export const Modal: React.FC<ModalProps> = ({
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
 
         {footer && (
-          <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-5">{footer}</div>
+          <div className="border-t border-line-soft bg-surface-muted/70 px-4 py-3 sm:px-5">{footer}</div>
         )}
       </div>
     </div>,

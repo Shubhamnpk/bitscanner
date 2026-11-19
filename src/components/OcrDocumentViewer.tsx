@@ -140,16 +140,16 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
       role="region"
       aria-label="OCR Document Reader"
       data-testid="ocr-fullscreen-view"
-      className="absolute inset-0 z-20 lg:static lg:z-auto flex w-full lg:w-[440px] shrink-0 flex-col bg-slate-50 lg:bg-white lg:border-l lg:border-slate-200 overflow-hidden"
+      className="absolute inset-0 z-20 lg:static lg:z-auto flex w-full lg:w-[440px] shrink-0 flex-col bg-surface-muted lg:bg-surface lg:border-l lg:border-line overflow-hidden"
     >
       {/* Compact Engine Controls + Search + Reader Tabs (No redundant header) */}
-      <div className="shrink-0 border-b border-slate-200 bg-white px-3.5 py-2.5 flex flex-col gap-2">
+      <div className="shrink-0 border-b border-line bg-surface px-3.5 py-2.5 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <select
             value={ocrLang}
             onChange={(e) => onChangeLang(e.target.value)}
             aria-label="OCR Language"
-            className="h-9 rounded-xl border border-slate-200 bg-slate-50 px-2.5 text-xs font-medium text-slate-800 focus:border-teal-600 focus:bg-white focus:outline-none"
+            className="h-9 rounded-xl border border-line bg-surface-muted px-2.5 text-xs font-medium text-ink-strong focus:border-accent focus:bg-surface focus:outline-none"
           >
             <option value="eng">English</option>
             <option value="spa">Spanish</option>
@@ -157,7 +157,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             <option value="deu">German</option>
           </select>
 
-          <div className="flex flex-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 p-0.5">
+          <div className="flex flex-1 rounded-xl bg-surface-subtle dark:bg-slate-800/80 p-0.5">
             {(
               [
                 { id: 'auto', label: 'Auto' },
@@ -172,8 +172,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 onClick={() => onChangeLayoutMode(mode.id)}
                 className={`flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition-colors cursor-pointer ${
                   ocrLayoutMode === mode.id
-                    ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
-                    : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    ? 'bg-surface text-accent-text shadow-xs dark:bg-accent dark:text-white'
+                    : 'text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
                 }`}
               >
                 {mode.label}
@@ -186,7 +186,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             onClick={onClose}
             aria-label="Close OCR view"
             data-testid="ocr-close-btn"
-            className="hidden lg:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-800 cursor-pointer"
+            className="hidden lg:inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-ink-muted hover:bg-surface-muted hover:text-ink-strong cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -195,7 +195,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
               aria-hidden="true"
             />
             <input
@@ -205,7 +205,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               placeholder="Search words, amounts, or table cells..."
               data-testid="ocr-search-input"
               aria-label="Search extracted OCR text"
-              className="h-9 w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-3 text-xs text-slate-800 focus:border-teal-600 focus:bg-white focus:outline-none"
+              className="h-9 w-full rounded-xl border border-line bg-surface-muted pl-8 pr-3 text-xs text-ink-strong focus:border-accent focus:bg-surface focus:outline-none"
             />
           </div>
 
@@ -215,7 +215,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               disabled={ocrRunning}
               onClick={onRunOcrAllPages}
               data-testid="ocr-extract-all-btn"
-              className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-teal-200 bg-teal-50 px-2.5 text-[11px] font-semibold text-teal-800 hover:bg-teal-100 disabled:opacity-50 cursor-pointer"
+              className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl border border-accent-line bg-accent-soft px-2.5 text-[11px] font-semibold text-accent-text hover:bg-accent-soft disabled:opacity-50 cursor-pointer"
             >
               <Layers className="h-3.5 w-3.5" aria-hidden="true" />
               <span>All {totalPages}p</span>
@@ -224,15 +224,15 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         </div>
 
         {/* View Mode Switcher */}
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-xl bg-surface-subtle dark:bg-slate-800/80 p-1">
           <button
             type="button"
             data-testid="ocr-tab-layout"
             onClick={() => setActiveTab('layout')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'layout'
-                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'bg-surface text-accent-text shadow-xs dark:bg-accent dark:text-white'
+                : 'text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             {hasTables ? (
@@ -248,8 +248,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             onClick={() => setActiveTab('plain')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'plain'
-                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'bg-surface text-accent-text shadow-xs dark:bg-accent dark:text-white'
+                : 'text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             <PencilLine className="h-3.5 w-3.5" aria-hidden="true" />
@@ -261,8 +261,8 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             onClick={() => setActiveTab('fields')}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'fields'
-                ? 'bg-white text-teal-800 shadow-xs dark:bg-teal-600 dark:text-white'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                ? 'bg-surface text-accent-text shadow-xs dark:bg-accent dark:text-white'
+                : 'text-ink-muted hover:text-ink dark:text-ink-faint dark:hover:text-white'
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -274,17 +274,17 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
       {/* Scrollable Main Reader Body */}
       <div className="flex-1 overflow-y-auto p-3.5 sm:p-5 flex flex-col gap-3">
         {ocrRunning && (
-          <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-3">
+          <div className="rounded-xl border border-accent-line bg-accent-soft/70 p-3">
             {ocrBatchStatus && (
-              <div className="mb-0.5 text-xs font-semibold text-teal-800">{ocrBatchStatus}</div>
+              <div className="mb-0.5 text-xs font-semibold text-accent-text">{ocrBatchStatus}</div>
             )}
-            <div className="mb-1.5 flex justify-between text-xs text-slate-700">
+            <div className="mb-1.5 flex justify-between text-xs text-ink-soft">
               <span className="truncate font-medium">{ocrStatus}</span>
-              <span className="font-mono-tabular font-bold text-teal-800">{ocrProgress}%</span>
+              <span className="font-mono-tabular font-bold text-accent-text">{ocrProgress}%</span>
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white border border-teal-200/70">
+            <div className="h-2 w-full overflow-hidden rounded-full bg-surface border border-accent-line/70">
               <div
-                className="h-full bg-teal-600 transition-all"
+                className="h-full bg-accent transition-all"
                 style={{ width: `${ocrProgress}%` }}
               />
             </div>
@@ -292,7 +292,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         )}
 
         {ocrError && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <div className="rounded-xl border border-warning-line bg-warning-soft p-3 text-xs text-warning-text">
             {ocrError}
           </div>
         )}
@@ -300,13 +300,13 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         {searchQuery.trim() && (
           <div
             data-testid="ocr-search-results"
-            className="rounded-xl border border-teal-200 bg-teal-50/50 px-3 py-2 text-xs text-slate-700 flex items-center justify-between"
+            className="rounded-xl border border-accent-line bg-accent-soft/50 px-3 py-2 text-xs text-ink-soft flex items-center justify-between"
           >
             <span className="font-semibold">
               {searchMatches.totalMatches}{' '}
               {searchMatches.totalMatches === 1 ? 'match' : 'matches'} on Page {pageNumber}
             </span>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-ink-muted">
               {searchMatches.matchingLines.length} lines
             </span>
           </div>
@@ -316,22 +316,22 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         {activeTab === 'layout' && (
           <div
             data-testid="ocr-structured-sheet"
-            className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-6 shadow-sm flex flex-col gap-4"
+            className="mx-auto w-full max-w-2xl rounded-2xl border border-line/90 bg-surface p-4 sm:p-6 shadow-sm flex flex-col gap-4"
           >
             {!ocrText.trim() ? (
               <div className="py-10 text-center flex flex-col items-center gap-3">
                 <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 ${
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-soft text-accent-strong ${
                     ocrRunning ? 'animate-pulse' : ''
                   }`}
                 >
                   <ScanText className="h-6 w-6" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-slate-900">
+                  <p className="text-sm font-bold text-ink">
                     {ocrRunning ? 'Recognizing Page Layout...' : 'Ready to Digitize Page'}
                   </p>
-                  <p className="mt-1 max-w-xs text-xs text-slate-500">
+                  <p className="mt-1 max-w-xs text-xs text-ink-muted">
                     {ocrRunning
                       ? 'Extracting headings, aligned tables, amounts, and paragraphs from your scan.'
                       : 'Tap Extract Text to recognize headings, tables, amounts, and paragraphs in their exact document layout.'}
@@ -344,7 +344,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                   return (
                     <h3
                       key={bIdx}
-                      className={`text-base sm:text-lg font-extrabold tracking-tight text-slate-900 border-b border-slate-100 pb-2 ${
+                      className={`text-base sm:text-lg font-extrabold tracking-tight text-ink border-b border-line-soft pb-2 ${
                         block.align === 'center' ? 'text-center' : 'text-left'
                       }`}
                     >
@@ -357,17 +357,17 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                   return (
                     <div
                       key={bIdx}
-                      className="rounded-xl border border-slate-200/80 bg-slate-50/60 divide-y divide-slate-200/70"
+                      className="rounded-xl border border-line/80 bg-surface-muted/60 divide-y divide-slate-200/70"
                     >
                       {block.pairs.map((pair, pIdx) => (
                         <div
                           key={pIdx}
                           className="flex flex-wrap items-baseline justify-between gap-2 px-3 py-2 text-xs sm:text-sm"
                         >
-                          <span className="font-semibold text-slate-600">
+                          <span className="font-semibold text-ink-muted">
                             <HighlightMatchText text={pair.key} query={searchQuery} />
                           </span>
-                          <span className="font-medium text-slate-900 font-mono-tabular">
+                          <span className="font-medium text-ink font-mono-tabular">
                             <HighlightMatchText text={pair.value} query={searchQuery} />
                           </span>
                         </div>
@@ -381,16 +381,16 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                     <div
                       key={bIdx}
                       data-testid="ocr-detected-table"
-                      className="overflow-x-auto rounded-xl border border-slate-200 bg-white"
+                      className="overflow-x-auto rounded-xl border border-line bg-surface"
                     >
                       <table className="w-full border-collapse text-xs sm:text-[13px]">
                         {block.headers && block.headers.length > 0 && (
-                          <thead className="bg-slate-100/90 border-b border-slate-200">
+                          <thead className="bg-surface-subtle/90 border-b border-line">
                             <tr>
                               {block.headers.map((h, hIdx) => (
                                 <th
                                   key={hIdx}
-                                  className={`px-3 py-2 font-bold text-slate-800 whitespace-nowrap ${
+                                  className={`px-3 py-2 font-bold text-ink-strong whitespace-nowrap ${
                                     block.alignments?.[hIdx] === 'right'
                                       ? 'text-right'
                                       : 'text-left'
@@ -402,18 +402,18 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                             </tr>
                           </thead>
                         )}
-                        <tbody className="divide-y divide-slate-100">
+                        <tbody className="divide-y divide-line-soft">
                           {block.rows.map((row, rIdx) => (
                             <tr
                               key={rIdx}
-                              className={rIdx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}
+                              className={rIdx % 2 === 1 ? 'bg-surface-muted/40' : 'bg-surface'}
                             >
                               {row.map((cell, cIdx) => (
                                 <td
                                   key={cIdx}
-                                  className={`px-3 py-2 text-slate-800 ${
+                                  className={`px-3 py-2 text-ink-strong ${
                                     block.alignments?.[cIdx] === 'right'
-                                      ? 'text-right font-mono-tabular font-semibold text-slate-900 whitespace-nowrap'
+                                      ? 'text-right font-mono-tabular font-semibold text-ink whitespace-nowrap'
                                       : 'text-left'
                                   }`}
                                 >
@@ -432,7 +432,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                   return (
                     <ul
                       key={bIdx}
-                      className="list-disc pl-5 flex flex-col gap-1.5 text-xs sm:text-sm text-slate-800 leading-relaxed"
+                      className="list-disc pl-5 flex flex-col gap-1.5 text-xs sm:text-sm text-ink-strong leading-relaxed"
                     >
                       {block.items.map((item, itIdx) => (
                         <li key={itIdx}>
@@ -446,7 +446,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 return (
                   <p
                     key={bIdx}
-                    className="text-xs sm:text-sm leading-relaxed text-slate-800 whitespace-pre-line"
+                    className="text-xs sm:text-sm leading-relaxed text-ink-strong whitespace-pre-line"
                   >
                     <HighlightMatchText text={block.text} query={searchQuery} />
                   </p>
@@ -464,7 +464,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               value={ocrText}
               onChange={(e) => onChangeOcrText(e.target.value)}
               placeholder="Extracted text appears here and updates Document View automatically as you edit..."
-              className="flex-1 min-h-[320px] w-full rounded-2xl border border-slate-200 bg-white p-4 text-xs sm:text-sm leading-relaxed text-slate-800 focus:border-teal-600 focus:outline-none shadow-xs"
+              className="flex-1 min-h-[320px] w-full rounded-2xl border border-line bg-surface p-4 text-xs sm:text-sm leading-relaxed text-ink-strong focus:border-accent focus:outline-none shadow-xs"
             />
           </div>
         )}
@@ -473,15 +473,15 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
         {activeTab === 'fields' && (
           <div
             data-testid="ocr-detected-entities"
-            className="mx-auto w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-4 shadow-xs"
+            className="mx-auto w-full max-w-2xl rounded-2xl border border-line bg-surface p-4 shadow-xs"
           >
             {entityChips.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">
+              <p className="py-6 text-center text-xs text-ink-muted">
                 No dates, monetary totals, phone numbers, emails, or URLs detected on this page yet.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold text-slate-600 mb-1">
+                <p className="text-xs font-semibold text-ink-muted mb-1">
                   Tap any recognized field to copy it to your clipboard
                 </p>
                 {entityChips.map((item) => {
@@ -491,19 +491,19 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                       key={`${item.kind}-${item.value}`}
                       type="button"
                       onClick={() => handleCopyEntity(item.value)}
-                      className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2 text-left text-xs hover:border-teal-500 hover:bg-teal-50/40 transition cursor-pointer"
+                      className="flex min-h-[44px] items-center justify-between gap-3 rounded-xl border border-line bg-surface-muted/70 px-3.5 py-2 text-left text-xs hover:border-teal-500 hover:bg-accent-soft/40 transition cursor-pointer"
                     >
                       <div className="min-w-0">
-                        <span className="block text-[10px] font-bold uppercase tracking-wider text-teal-700">
+                        <span className="block text-[10px] font-bold uppercase tracking-wider text-accent-strong">
                           {item.kind}
                         </span>
-                        <span className="block truncate text-sm font-medium text-slate-900">
+                        <span className="block truncate text-sm font-medium text-ink">
                           {item.value}
                         </span>
                       </div>
-                      <span className="shrink-0 text-slate-400">
+                      <span className="shrink-0 text-ink-faint">
                         {isCopied ? (
-                          <Check className="h-4 w-4 text-teal-600" aria-hidden="true" />
+                          <Check className="h-4 w-4 text-accent" aria-hidden="true" />
                         ) : (
                           <Copy className="h-4 w-4" aria-hidden="true" />
                         )}
@@ -521,15 +521,15 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
       {exportMenuOpen && (
         <div
           data-testid="ocr-export-format-sheet"
-          className="shrink-0 border-t border-slate-200 bg-slate-50/95 px-3.5 py-3 animate-sheet-up"
+          className="shrink-0 border-t border-line bg-surface-muted/95 px-3.5 py-3 animate-sheet-up"
         >
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-900">Export Extracted OCR</span>
+            <span className="text-xs font-bold text-ink">Export Extracted OCR</span>
             <button
               type="button"
               onClick={() => setExportMenuOpen(false)}
               aria-label="Close OCR export formats"
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-200/70 hover:text-slate-700 cursor-pointer"
+              className="rounded-lg p-1 text-ink-faint hover:bg-slate-200/70 hover:text-ink-soft cursor-pointer"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -543,12 +543,12 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'doc', structuredBlocks);
                 setExportMenuOpen(false);
               }}
-              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-left hover:border-teal-500 hover:bg-accent-soft/40 disabled:opacity-40 cursor-pointer"
             >
-              <FileText className="h-4 w-4 text-teal-700 shrink-0" aria-hidden="true" />
+              <FileText className="h-4 w-4 text-accent-strong shrink-0" aria-hidden="true" />
               <div className="min-w-0">
-                <span className="block text-xs font-bold text-slate-900">Word (.doc)</span>
-                <span className="block text-[10px] text-slate-500 truncate">Tables &amp; layout</span>
+                <span className="block text-xs font-bold text-ink">Word (.doc)</span>
+                <span className="block text-[10px] text-ink-muted truncate">Tables &amp; layout</span>
               </div>
             </button>
 
@@ -560,12 +560,12 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'txt', structuredBlocks);
                 setExportMenuOpen(false);
               }}
-              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-left hover:border-teal-500 hover:bg-accent-soft/40 disabled:opacity-40 cursor-pointer"
             >
-              <FileDown className="h-4 w-4 text-slate-600 shrink-0" aria-hidden="true" />
+              <FileDown className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
               <div className="min-w-0">
-                <span className="block text-xs font-bold text-slate-900">Plain Text (.txt)</span>
-                <span className="block text-[10px] text-slate-500 truncate">Raw extracted text</span>
+                <span className="block text-xs font-bold text-ink">Plain Text (.txt)</span>
+                <span className="block text-[10px] text-ink-muted truncate">Raw extracted text</span>
               </div>
             </button>
 
@@ -577,12 +577,12 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 exportOcrTextFile(`${docTitle}_p${pageNumber}`, ocrText, 'md', structuredBlocks);
                 setExportMenuOpen(false);
               }}
-              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left hover:border-teal-500 hover:bg-teal-50/40 disabled:opacity-40 cursor-pointer"
+              className="flex min-h-[44px] items-center gap-2.5 rounded-xl border border-line bg-surface px-3 py-2 text-left hover:border-teal-500 hover:bg-accent-soft/40 disabled:opacity-40 cursor-pointer"
             >
-              <Code2 className="h-4 w-4 text-slate-600 shrink-0" aria-hidden="true" />
+              <Code2 className="h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
               <div className="min-w-0">
-                <span className="block text-xs font-bold text-slate-900">Markdown (.md)</span>
-                <span className="block text-[10px] text-slate-500 truncate">Formatted tables</span>
+                <span className="block text-xs font-bold text-ink">Markdown (.md)</span>
+                <span className="block text-[10px] text-ink-muted truncate">Formatted tables</span>
               </div>
             </button>
           </div>
@@ -594,7 +594,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
                 setExportMenuOpen(false);
                 onOpenExport();
               }}
-              className="mt-2 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3 text-xs font-semibold text-teal-800 hover:bg-teal-100 cursor-pointer"
+              className="mt-2 flex min-h-[40px] w-full items-center justify-center gap-1.5 rounded-xl border border-accent-line bg-accent-soft px-3 text-xs font-semibold text-accent-text hover:bg-accent-soft cursor-pointer"
             >
               <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Export Full Scan (PDF / Image / Word)</span>
@@ -604,17 +604,17 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
       )}
 
       {/* Unified Bottom Action Bar: Re-Scan | Copy | Export */}
-      <div className="shrink-0 border-t border-slate-200 bg-white px-3 py-2.5">
+      <div className="shrink-0 border-t border-line bg-surface px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <button
             type="button"
             disabled={ocrRunning}
             onClick={onRunOcr}
             data-testid="ocr-extract-btn"
-            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50 active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-ink-strong hover:bg-surface-muted disabled:opacity-50 active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
           >
             <RefreshCw
-              className={`h-3.5 w-3.5 text-teal-700 shrink-0 ${ocrRunning ? 'animate-spin' : ''}`}
+              className={`h-3.5 w-3.5 text-accent-strong shrink-0 ${ocrRunning ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
             <span>{ocrRunning ? `${ocrProgress}%` : ocrText ? 'Re-Scan' : 'Extract'}</span>
@@ -628,16 +628,16 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
               setCopiedAll(true);
               window.setTimeout(() => setCopiedAll(false), 1500);
             }}
-            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-[42px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-2.5 text-xs font-semibold text-ink-strong hover:bg-surface-muted disabled:opacity-40 cursor-pointer whitespace-nowrap"
           >
             {copiedAll ? (
               <>
-                <Check className="h-3.5 w-3.5 text-teal-600 shrink-0" aria-hidden="true" />
+                <Check className="h-3.5 w-3.5 text-accent shrink-0" aria-hidden="true" />
                 <span>Copied</span>
               </>
             ) : (
               <>
-                <Copy className="h-3.5 w-3.5 text-slate-600 shrink-0" aria-hidden="true" />
+                <Copy className="h-3.5 w-3.5 text-ink-muted shrink-0" aria-hidden="true" />
                 <span>Copy</span>
               </>
             )}
@@ -648,7 +648,7 @@ export const OcrDocumentViewer: React.FC<OcrDocumentViewerProps> = ({
             data-testid="ocr-open-export-btn"
             onClick={() => setExportMenuOpen((v) => !v)}
             aria-expanded={exportMenuOpen}
-            className="inline-flex min-h-[42px] flex-[1.2] items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-3 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
+            className="inline-flex min-h-[42px] flex-[1.2] items-center justify-center gap-1.5 rounded-xl bg-accent px-3 text-xs font-bold text-white hover:bg-accent-strong active:scale-[0.98] transition cursor-pointer whitespace-nowrap"
           >
             <FileDown className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>

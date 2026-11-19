@@ -214,24 +214,24 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
               type="button"
               onClick={onAutoDetect}
               disabled={detecting}
-              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs hover:bg-slate-50 disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-strong shadow-2xs hover:bg-surface-muted disabled:opacity-50 whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+              <Sparkles className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
               <span>{detecting ? 'Detecting...' : 'Auto-Detect'}</span>
             </button>
           )}
           <button
             type="button"
             onClick={setFullFrame}
-            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-semibold text-ink-soft shadow-2xs hover:bg-surface-muted whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Maximize2 className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
+            <Maximize2 className="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
             <span>Full Frame</span>
           </button>
         </div>
       )}
 
-      <div className="relative flex items-center justify-center rounded-2xl border border-slate-200/80 editor-mat-bg p-3 sm:p-5 min-h-[260px] sm:min-h-[360px] max-h-[58dvh] sm:max-h-[480px] overflow-hidden select-none">
+      <div className="relative flex items-center justify-center rounded-2xl border border-line/80 editor-mat-bg p-3 sm:p-5 min-h-[260px] sm:min-h-[360px] max-h-[58dvh] sm:max-h-[480px] overflow-hidden select-none">
         <div
           ref={containerRef}
           className="relative inline-block max-h-[50dvh] sm:max-h-[430px] shadow-md"
@@ -297,7 +297,7 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
               >
                 <span
                   className={`h-1.5 w-6 rounded-full border border-white shadow-md transition-colors ${
-                    activeEdgeIdx === edgeIdx ? 'bg-teal-400 scale-110' : 'bg-teal-600'
+                    activeEdgeIdx === edgeIdx ? 'bg-teal-400 scale-110' : 'bg-accent'
                   }`}
                 />
               </button>
@@ -320,7 +320,7 @@ export const PerspectiveCropCanvas: React.FC<PerspectiveCropCanvasProps> = ({
                 activeIdx === idx ? 'scale-115' : ''
               }`}
             >
-              <span className="h-4.5 w-4.5 rounded-full bg-teal-600 border-2 border-white shadow-md" />
+              <span className="h-4.5 w-4.5 rounded-full bg-accent border-2 border-white shadow-md" />
             </button>
           ))}
 

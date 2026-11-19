@@ -32,7 +32,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
     <nav
       aria-label="Mobile Bottom Navigation"
       data-testid="mobile-bottom-bar"
-      className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-slate-200 bg-white/95 backdrop-blur-md pb-safe"
+      className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-line bg-surface pb-safe"
     >
       <div className="grid grid-cols-4 items-center h-[60px] px-2">
         <button
@@ -43,7 +43,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             onNavigate('library');
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-            activeView === 'library' ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-500 dark:text-slate-400'
+            activeView === 'library' ? 'text-accent-strong dark:text-teal-300 font-bold' : 'text-ink-muted dark:text-ink-faint'
           }`}
         >
           <FolderOpen className="h-5 w-5" aria-hidden="true" />
@@ -59,8 +59,8 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
             activeView === 'tools' || activeView === 'id_studio'
-              ? 'text-teal-700 dark:text-teal-300 font-bold'
-              : 'text-slate-500 dark:text-slate-400'
+              ? 'text-accent-strong dark:text-teal-300 font-bold'
+              : 'text-ink-muted dark:text-ink-faint'
           }`}
         >
           <Grid2x2 className="h-5 w-5" aria-hidden="true" />
@@ -77,7 +77,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
               onOpenNewScan();
             }}
             aria-label="Scan new document"
-            className="flex h-12 w-12 -mt-3 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-lg shadow-teal-600/30 active:scale-95 transition-transform cursor-pointer"
+            className="flex h-12 w-12 -mt-3 items-center justify-center rounded-2xl bg-accent text-white shadow-lg shadow-teal-600/30 active:scale-95 transition-transform cursor-pointer"
           >
             <Camera className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -91,7 +91,7 @@ export const MobileBottomBar: React.FC<MobileBottomBarProps> = ({
             onNavigate('profile');
           }}
           className={`flex flex-col items-center justify-center min-h-[44px] active:scale-95 transition-transform cursor-pointer ${
-            activeView === 'profile' ? 'text-teal-700 dark:text-teal-300 font-bold' : 'text-slate-500 dark:text-slate-400'
+            activeView === 'profile' ? 'text-accent-strong dark:text-teal-300 font-bold' : 'text-ink-muted dark:text-ink-faint'
           }`}
         >
           <User className="h-5 w-5" aria-hidden="true" />

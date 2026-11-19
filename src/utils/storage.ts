@@ -259,7 +259,7 @@ export async function buildSampleDocuments(): Promise<ScanDocument[]> {
     );
     seeds.push({
       id: 'seed-idcard-02',
-      title: 'Aethel National ID — Evelyn Thorne',
+      title: 'Aethel National ID · Evelyn Thorne',
       folder: 'id_cards',
       starred: false,
       pages: [idPage],

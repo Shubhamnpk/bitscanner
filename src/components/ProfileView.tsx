@@ -33,6 +33,7 @@ import type { InfoPageId } from './InfoPagesView';
 import { PWAInstallButton } from './PWAInstallBanner';
 import { buildWorkspaceBackup, estimateWorkspaceBytes } from '../utils/workspaceBackup';
 import { useHaptics } from '../hooks/useHaptics';
+import { cardClass } from './ui/primitives';
 
 interface ProfileViewProps {
   settings: AppSettings;
@@ -73,7 +74,7 @@ const ActionRow: React.FC<{
     type="button"
     onClick={onClick}
     data-testid={testId}
-    className="group flex min-h-[60px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600 cursor-pointer"
+    className="group flex min-h-[60px] w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-muted active:bg-surface-subtle focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-teal-600 cursor-pointer"
   >
     <div className="flex min-w-0 items-center gap-3">
       <span
@@ -82,17 +83,17 @@ const ActionRow: React.FC<{
         <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+        <div className="flex items-center gap-2 text-sm font-semibold text-ink">
           <span className="truncate">{title}</span>
           {badge}
         </div>
-        <div className="line-clamp-2 text-xs text-slate-500 sm:line-clamp-1">{description}</div>
+        <div className="line-clamp-2 text-xs text-ink-muted sm:line-clamp-1">{description}</div>
       </div>
     </div>
     <div className="flex shrink-0 items-center gap-2">
       {trailing}
       <ChevronRight
-        className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-400"
+        className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-ink-faint"
         aria-hidden="true"
       />
     </div>
@@ -101,10 +102,10 @@ const ActionRow: React.FC<{
 
 const HeroStat: React.FC<{ value: string | number; label: string }> = ({ value, label }) => (
   <div className="min-w-0 px-1">
-    <div className="font-mono-tabular truncate text-sm font-bold text-slate-900 sm:text-base">
+    <div className="font-mono-tabular truncate text-sm font-bold text-ink sm:text-base">
       {value}
     </div>
-    <div className="mt-0.5 truncate text-[10px] font-medium text-slate-500 sm:text-[11px]">
+    <div className="mt-0.5 truncate text-[10px] font-medium text-ink-muted sm:text-[11px]">
       {label}
     </div>
   </div>
@@ -258,9 +259,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-5 pb-24 sm:p-6 lg:p-8"
     >
       {/* Local Account Identity Card */}
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xs">
+      <section className="relative overflow-hidden rounded-3xl border border-line bg-surface shadow-xs">
         <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-teal-50 via-white to-sky-50/70"
+          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent-soft via-surface to-info-soft/70"
           aria-hidden="true"
         />
         <div
@@ -273,8 +274,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             <form onSubmit={saveProfile} noValidate className="animate-sheet-up">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-slate-900">Edit local profile</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">
+                  <h2 className="text-base font-bold text-ink">Edit local profile</h2>
+                  <p className="mt-0.5 text-xs text-ink-muted">
                     Only stored in this browser. Nothing is uploaded.
                   </p>
                 </div>
@@ -282,7 +283,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   type="button"
                   onClick={cancelEditProfile}
                   aria-label="Cancel editing profile"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white hover:text-slate-900 cursor-pointer"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-surface hover:text-ink cursor-pointer"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
@@ -292,7 +293,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <div>
                   <label
                     htmlFor={`${formId}-name`}
-                    className="mb-1 block text-xs font-semibold text-slate-600"
+                    className="mb-1 block text-xs font-semibold text-ink-muted"
                   >
                     Display Name
                   </label>
@@ -305,13 +306,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     data-testid="profile-name-input"
                     autoComplete="name"
                     autoFocus
-                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                    className="min-h-[44px] w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink focus:border-accent focus:outline-none"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor={`${formId}-handle`}
-                    className="mb-1 block text-xs font-semibold text-slate-600"
+                    className="mb-1 block text-xs font-semibold text-ink-muted"
                   >
                     Handle
                   </label>
@@ -324,11 +325,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     placeholder="@bitscan_user"
                     data-testid="profile-handle-input"
                     autoComplete="username"
-                    className="min-h-[44px] w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none"
+                    className="min-h-[44px] w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink focus:border-accent focus:outline-none"
                   />
-                  <p className="mt-1 truncate text-[11px] text-slate-400">
+                  <p className="mt-1 truncate text-[11px] text-ink-faint">
                     Saved as{' '}
-                    <span className="font-semibold text-slate-600">
+                    <span className="font-semibold text-ink-muted">
                       {sanitizeAccountHandle(handleDraft)}
                     </span>
                   </p>
@@ -336,7 +337,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <div>
                   <label
                     htmlFor={`${formId}-email`}
-                    className="mb-1 block text-xs font-semibold text-slate-600"
+                    className="mb-1 block text-xs font-semibold text-ink-muted"
                   >
                     Email
                   </label>
@@ -353,25 +354,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     autoComplete="email"
                     aria-invalid={Boolean(emailError)}
                     aria-describedby={emailError ? `${formId}-email-error` : undefined}
-                    className={`min-h-[44px] w-full rounded-xl border bg-white px-3 text-sm text-slate-900 focus:outline-none ${
+                    className={`min-h-[44px] w-full rounded-xl border bg-surface px-3 text-sm text-ink focus:outline-none ${
                       emailError
-                        ? 'border-red-300 focus:border-red-500'
-                        : 'border-slate-200 focus:border-teal-600'
+                        ? 'border-danger-line focus:border-danger'
+                        : 'border-line focus:border-accent'
                     }`}
                   />
                   {emailError ? (
-                    <p id={`${formId}-email-error`} className="mt-1 text-[11px] text-red-600">
+                    <p id={`${formId}-email-error`} className="mt-1 text-[11px] text-danger">
                       {emailError}
                     </p>
                   ) : (
-                    <p className="mt-1 text-[11px] text-slate-400">Never uploaded anywhere</p>
+                    <p className="mt-1 text-[11px] text-ink-faint">Never uploaded anywhere</p>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-slate-200/80 pt-3">
+              <div className="mt-4 border-t border-line/80 pt-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="mr-1 text-xs font-semibold text-slate-600">Badge Color</span>
+                  <span className="mr-1 text-xs font-semibold text-ink-muted">Badge Color</span>
                   {AVATAR_COLOR_OPTIONS.map((color) => {
                     const selected = colorDraft === color.id;
                     return (
@@ -400,14 +401,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   type="button"
                   onClick={cancelEditProfile}
                   data-testid="profile-cancel-btn"
-                  className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[44px] rounded-xl border border-line bg-surface px-3.5 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   data-testid="profile-save-btn"
-                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-teal-600 px-4 text-xs font-bold text-white hover:bg-teal-700 active:scale-[0.98] transition-all cursor-pointer"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-accent px-4 text-xs font-bold text-white hover:bg-accent-strong active:scale-[0.98] transition-all cursor-pointer"
                 >
                   <Check className="h-3.5 w-3.5" aria-hidden="true" />
                   Save changes
@@ -426,14 +427,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-2xl">
+                    <h1 className="truncate text-lg font-bold tracking-tight text-ink sm:text-2xl">
                       {settings.displayName}
                     </h1>
                     <button
                       type="button"
                       onClick={openEditProfile}
                       data-testid="profile-edit-btn"
-                      className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white/90 px-2.5 sm:px-3 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-white hover:text-slate-900 cursor-pointer"
+                      className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-xl border border-line bg-surface/90 px-2.5 sm:px-3 text-xs font-semibold text-ink-soft shadow-xs transition-colors hover:bg-surface hover:text-ink cursor-pointer"
                     >
                       <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                       <span className="hidden sm:inline">Edit Profile</span>
@@ -442,25 +443,25 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   </div>
 
                   <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs">
-                    <span className="shrink-0 font-semibold text-teal-700">
+                    <span className="shrink-0 font-semibold text-accent-strong">
                       {settings.accountHandle}
                     </span>
-                    <span className="shrink-0 text-slate-400" aria-hidden="true">
+                    <span className="shrink-0 text-ink-faint" aria-hidden="true">
                       ·
                     </span>
-                    <span className="min-w-0 truncate text-slate-500">{settings.email}</span>
+                    <span className="min-w-0 truncate text-ink-muted">{settings.email}</span>
                   </div>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium text-slate-500">
-                    <span className="inline-flex items-center gap-1 font-semibold text-teal-700">
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium text-ink-muted">
+                    <span className="inline-flex items-center gap-1 font-semibold text-accent-strong">
                       <Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
                       <span>Local-only</span>
                     </span>
                     <span className="text-slate-300" aria-hidden="true">
                       •
                     </span>
-                    <span className="inline-flex items-center gap-1 text-slate-500">
-                      <CalendarDays className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+                    <span className="inline-flex items-center gap-1 text-ink-muted">
+                      <CalendarDays className="h-3 w-3 shrink-0 text-ink-faint" aria-hidden="true" />
                       <span>Since {memberSince}</span>
                     </span>
                   </div>
@@ -468,7 +469,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               </div>
 
               {/* Workspace Summary Numbers */}
-              <div className="mt-4 grid grid-cols-4 divide-x divide-slate-200/80 rounded-2xl border border-slate-200/80 bg-slate-50/75 py-2.5 text-center">
+              <div className="mt-4 grid grid-cols-4 divide-x divide-slate-200/80 rounded-2xl border border-line/80 bg-surface-muted/75 py-2.5 text-center">
                 <HeroStat
                   value={documents.length}
                   label={documents.length === 1 ? 'Project' : 'Projects'}
@@ -480,18 +481,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               {storageEstimate && (
                 <div className="mt-3.5">
-                  <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-slate-500">
+                  <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-ink-muted">
                     <span className="inline-flex items-center gap-1.5">
-                      <HardDrive className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                      <HardDrive className="h-3.5 w-3.5 text-ink-faint" aria-hidden="true" />
                       Browser storage
                     </span>
-                    <span className="font-mono-tabular shrink-0 text-slate-500">
+                    <span className="font-mono-tabular shrink-0 text-ink-muted">
                       {formatByteSize(storageEstimate.usage)} of{' '}
                       {formatByteSize(storageEstimate.quota)}
                     </span>
                   </div>
                   <div
-                    className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-200/80"
+                    className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-surface-subtle/80"
                     role="progressbar"
                     aria-label="Browser storage used"
                     aria-valuemin={0}
@@ -515,13 +516,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Workspace */}
       <div className="flex flex-col gap-2">
-        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
           Workspace
         </h2>
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100">
+        <section className={cardClass('overflow-hidden divide-y divide-line-soft')}>
           <ActionRow
             icon={Settings}
-            accent="bg-teal-50 text-teal-700"
+            accent="bg-accent-soft text-accent-strong"
             title="Settings"
             description="Capture, export defaults, OCR language & confirmations"
             onClick={() => {
@@ -532,12 +533,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           />
           <ActionRow
             icon={PenTool}
-            accent="bg-violet-50 text-violet-700"
+            accent="bg-violet-soft text-violet"
             title="My E-Signatures"
             description="Create or manage saved signatures & paper stamps"
             badge={
               savedSignatures.length > 0 ? (
-                <span className="font-mono-tabular rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-700">
+                <span className="font-mono-tabular rounded-full bg-violet-soft px-1.5 py-0.5 text-[10px] font-bold text-violet">
                   {savedSignatures.length}
                 </span>
               ) : undefined
@@ -549,7 +550,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           />
           <ActionRow
             icon={Download}
-            accent="bg-sky-50 text-sky-700"
+            accent="bg-info-soft text-info"
             title="Export local backup"
             description={
               backupNotice || `Everything as JSON · about ${formatByteSize(estimatedBytes)}`
@@ -557,14 +558,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             onClick={handleExportBackupJson}
             testId="profile-backup-btn"
             trailing={
-              <span className="hidden rounded-md border border-slate-200 px-1.5 py-0.5 font-mono-tabular text-[10px] font-semibold text-slate-500 sm:inline">
+              <span className="hidden rounded-md border border-line px-1.5 py-0.5 font-mono-tabular text-[10px] font-semibold text-ink-muted sm:inline">
                 .JSON
               </span>
             }
           />
           <ActionRow
             icon={Sparkles}
-            accent="bg-amber-50 text-amber-600"
+            accent="bg-warning-soft text-warning"
             title="Welcome setup tour"
             description="Replay the guided profile & default filter setup"
             onClick={() => {
@@ -578,13 +579,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Learn & Support */}
       <div className="flex flex-col gap-2">
-        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-ink-muted">
           Learn &amp; Support
         </h2>
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white divide-y divide-slate-100">
+        <section className={cardClass('overflow-hidden divide-y divide-line-soft')}>
           <ActionRow
             icon={Info}
-            accent="bg-slate-100 text-slate-600"
+            accent="bg-surface-subtle text-ink-muted"
             title="About bitscanner"
             description="What this app does & how it stays private"
             onClick={() => {
@@ -593,14 +594,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             }}
             testId="profile-about-btn"
             trailing={
-              <span className="font-mono-tabular text-[11px] font-semibold text-slate-400">
+              <span className="font-mono-tabular text-[11px] font-semibold text-ink-faint">
                 v{APP_VERSION}
               </span>
             }
           />
           <ActionRow
             icon={History}
-            accent="bg-slate-100 text-slate-600"
+            accent="bg-surface-subtle text-ink-muted"
             title="Release notes & changelog"
             description="What changed in each version"
             onClick={() => {
@@ -611,7 +612,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           />
           <ActionRow
             icon={Lock}
-            accent="bg-slate-100 text-slate-600"
+            accent="bg-surface-subtle text-ink-muted"
             title="Privacy & offline storage"
             description="Where your scans live and who can see them"
             onClick={() => {
@@ -622,7 +623,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           />
           <ActionRow
             icon={HelpCircle}
-            accent="bg-slate-100 text-slate-600"
+            accent="bg-surface-subtle text-ink-muted"
             title="Help & touch gestures"
             description="Shortcuts, gestures and common questions"
             onClick={() => {
@@ -633,7 +634,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
           />
           <ActionRow
             icon={Code2}
-            accent="bg-slate-100 text-slate-600"
+            accent="bg-surface-subtle text-ink-muted"
             title="Android Kotlin blueprint"
             description="Peek at the native app architecture notes"
             onClick={() => {
@@ -646,18 +647,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
       {/* Danger Zone */}
       <div className="flex flex-col gap-2">
-        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-red-500/90">
+        <h2 className="px-1 text-[11px] font-bold uppercase tracking-wider text-danger/90">
           Danger zone
         </h2>
-        <section className="rounded-2xl border border-red-200 bg-red-50/50 p-4">
+        <section className="rounded-2xl border border-danger-line bg-danger-soft/50 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-100 text-red-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-danger-soft text-danger">
                 <AlertTriangle className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
               <div>
-                <div className="text-sm font-semibold text-red-950">Erase local workspace</div>
-                <div className="mt-0.5 text-xs text-red-800/80">
+                <div className="text-sm font-semibold text-danger-text">Erase local workspace</div>
+                <div className="mt-0.5 text-xs text-danger-text/80">
                   Deletes every project &amp; signature in this browser .This cannot be undone.
                 </div>
               </div>
@@ -671,7 +672,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                   setConfirmReset(true);
                 }}
                 data-testid="profile-reset-btn"
-                className="min-h-[40px] shrink-0 rounded-xl border border-red-200 bg-white px-3.5 text-xs font-semibold text-red-700 hover:bg-red-50 cursor-pointer"
+                className="min-h-[40px] shrink-0 rounded-xl border border-danger-line bg-surface px-3.5 text-xs font-semibold text-danger hover:bg-danger-soft cursor-pointer"
               >
                 Reset
               </button>
@@ -680,7 +681,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setConfirmReset(false)}
-                  className="min-h-[40px] rounded-xl border border-red-200 bg-white px-3 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                  className="min-h-[40px] rounded-xl border border-danger-line bg-surface px-3 text-xs font-semibold text-ink-muted hover:bg-surface-muted cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -702,10 +703,11 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
         </section>
       </div>
 
-      <p className="flex items-center justify-center gap-1.5 px-2 pb-1 text-center text-[11px] text-slate-400">
-        <ShieldCheck className="h-3.5 w-3.5 text-teal-600/70" aria-hidden="true" />
+      <p className="flex items-center justify-center gap-1.5 px-2 pb-1 text-center text-[11px] text-ink-faint">
+        <ShieldCheck className="h-3.5 w-3.5 text-accent/70" aria-hidden="true" />
         Scans, OCR and signatures never leave this device.
       </p>
     </div>
   );
 };
+

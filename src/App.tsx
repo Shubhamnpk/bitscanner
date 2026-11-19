@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type {
   ActiveWorkspaceView,
   FolderId,
@@ -26,37 +26,63 @@ import {
   type ToolId,
 } from './utils/settingsStore';
 import { applyBrowserThemeColor, applyThemeClass, resolveTheme } from './utils/theme';
-import {
-  base64UrlToUint8,
-  uint8ToDataUrl,
-  type DecodedQrPayload,
-} from './utils/qrTransfer';
-import { renderPdfFileToImages } from './utils/pdfTools';
+import { base64UrlToUint8, uint8ToDataUrl, type DecodedQrPayload } from './utils/qrTransfer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TopBar } from './components/TopBar';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { LibraryView } from './components/LibraryView';
-import { ProjectDetailsView } from './components/ProjectDetailsView';
-import { ProjectEditModal } from './components/ProjectEditModal';
-import { DocumentEditor } from './components/DocumentEditor';
-import { CameraScanner, type CameraScanMode } from './components/CameraScanner';
-import { IdCardStudio } from './components/IdCardStudio';
-import { ExportModal } from './components/ExportModal';
-import { QrShareModal } from './components/QrShareModal';
-import { KotlinBlueprintModal } from './components/KotlinBlueprintModal';
-import { SignatureModal, type SignatureDocPayload } from './components/SignatureModal';
-import { ToolsView } from './components/ToolsView';
 import { ProfileView } from './components/ProfileView';
 import { SettingsView } from './components/SettingsView';
 import { OnboardingFlow } from './components/OnboardingFlow';
 import { InfoPagesView, type InfoPageId } from './components/InfoPagesView';
 import { OfflineIndicator } from './components/PWAInstallBanner';
-import {
-  loadImage,
-  perspectiveDewarp,
-  processPagePipeline,
-  renderPageThumbnail,
-} from './utils/imageProcessor';
+import type { CameraScanMode } from './components/CameraScanner';
+import type { SignatureDocPayload } from './components/SignatureModal';
+import { loadImage, perspectiveDewarp, processPagePipeline, renderPageThumbnail } from './utils/imageProcessor';
+
+/*
+ * Secondary views and every overlay are split out of the first paint chunk.
+ * They pull the heavy libraries (pdfjs, jsPDF, Tesseract, qrcode/jsQR), which
+ * used to land in a single 1.8 MB bundle before the library screen could show.
+ */
+const ProjectDetailsView = lazy(() =>
+  import('./components/ProjectDetailsView').then((m) => ({ default: m.ProjectDetailsView }))
+);
+const DocumentEditor = lazy(() =>
+  import('./components/DocumentEditor').then((m) => ({ default: m.DocumentEditor }))
+);
+const IdCardStudio = lazy(() =>
+  import('./components/IdCardStudio').then((m) => ({ default: m.IdCardStudio }))
+);
+const ToolsView = lazy(() =>
+  import('./components/ToolsView').then((m) => ({ default: m.ToolsView }))
+);
+const CameraScanner = lazy(() =>
+  import('./components/CameraScanner').then((m) => ({ default: m.CameraScanner }))
+);
+const QrShareModal = lazy(() =>
+  import('./components/QrShareModal').then((m) => ({ default: m.QrShareModal }))
+);
+const ExportModal = lazy(() =>
+  import('./components/ExportModal').then((m) => ({ default: m.ExportModal }))
+);
+const SignatureModal = lazy(() =>
+  import('./components/SignatureModal').then((m) => ({ default: m.SignatureModal }))
+);
+const KotlinBlueprintModal = lazy(() =>
+  import('./components/KotlinBlueprintModal').then((m) => ({ default: m.KotlinBlueprintModal }))
+);
+const ProjectEditModal = lazy(() =>
+  import('./components/ProjectEditModal').then((m) => ({ default: m.ProjectEditModal }))
+);
+
+function ViewFallback() {
+  return (
+    <div className="flex flex-1 items-center justify-center p-12" aria-busy="true">
+      <span className="h-7 w-7 animate-spin rounded-full border-2 border-line border-t-teal-600" />
+    </div>
+  );
+}
 
 function renderTextToDocumentPageDataUrl(title: string, bodyText: string): string {
   const c = window.document.createElement('canvas');
@@ -432,6 +458,8 @@ export default function App() {
         const copy = new Uint8Array(payload.fileBytes.byteLength);
         copy.set(payload.fileBytes);
         const file = new File([copy.buffer], payload.filename, { type: 'application/pdf' });
+        // pdfjs-dist is ~1.3 MB, so it stays out of the first paint chunk.
+        const { renderPdfFileToImages } = await import('./utils/pdfTools');
         const rendered = await renderPdfFileToImages(file, { scale: 2, format: 'jpeg' });
         if (rendered.length > 0) {
           await handleSaveImagesAsProject(
@@ -662,8 +690,8 @@ export default function App() {
     <div
       className={`${
         activeView === 'editor'
-          ? 'flex h-[100dvh] flex-col overflow-hidden bg-slate-50 text-slate-900'
-          : 'flex min-h-[100dvh] flex-col bg-slate-50 text-slate-900'
+          ? 'flex h-[100dvh] flex-col overflow-hidden bg-surface-muted text-ink'
+          : 'flex min-h-[100dvh] flex-col overflow-x-clip bg-surface-muted text-ink'
       }${appSettings.reduceMotion ? ' motion-reduce' : ''}`}
     >
       <TopBar
@@ -675,13 +703,14 @@ export default function App() {
 
       <OfflineIndicator />
 
-      {loading ? (
+      <Suspense fallback={<ViewFallback />}>
+        {loading ? (
         <div className="mx-auto w-full max-w-[1440px] p-4 sm:p-8">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(204px,1fr))] sm:gap-5">
             {Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="h-52 sm:h-64 animate-pulse rounded-2xl border border-slate-200 bg-white"
+                className="h-52 sm:h-64 animate-pulse rounded-2xl border border-line bg-surface"
               />
             ))}
           </div>
@@ -866,6 +895,7 @@ export default function App() {
           onDeleteSignature={handleDeleteSignature}
         />
       )}
+      </Suspense>
 
       <MobileBottomBar
         activeView={activeView}
@@ -873,89 +903,114 @@ export default function App() {
         onOpenNewScan={() => openScanner({ mode: 'auto' })}
       />
 
-      <CameraScanner
-        isOpen={scannerOpen}
-        initialMode={scannerInitialMode}
-        initialSource={scannerInitialSource}
-        initialFiles={scannerInitialFiles}
-        appendTargetDocId={appendTargetDocId}
-        defaultFilter={appSettings.defaultFilter}
-        autoEdgeDetect={appSettings.autoEdgeDetect}
-        defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
-        onClose={() => {
-          setScannerOpen(false);
-          setScannerInitialFiles(null);
-          setAppendTargetDocId(null);
-        }}
-        onCompletePages={handleCompleteScannedPages}
-        onCompleteIdPair={handleCompleteIdPair}
-        onQrFileReceived={(payload) => {
-          void handleQrFileReceived(payload);
-        }}
-      />
+      <Suspense fallback={null}>
+        {scannerOpen && (
+          <CameraScanner
+            isOpen
+            initialMode={scannerInitialMode}
+            initialSource={scannerInitialSource}
+            initialFiles={scannerInitialFiles}
+            appendTargetDocId={appendTargetDocId}
+            defaultFilter={appSettings.defaultFilter}
+            autoEdgeDetect={appSettings.autoEdgeDetect}
+            defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
+            onClose={() => {
+              setScannerOpen(false);
+              setScannerInitialFiles(null);
+              setAppendTargetDocId(null);
+            }}
+            onCompletePages={handleCompleteScannedPages}
+            onCompleteIdPair={handleCompleteIdPair}
+            onQrFileReceived={(payload) => {
+              void handleQrFileReceived(payload);
+            }}
+          />
+        )}
+      </Suspense>
 
-      <QrShareModal
-        isOpen={shareModalState.isOpen}
-        document={shareModalState.doc}
-        availableDocuments={documents}
-        initialPageIndex={shareModalState.pageIndex}
-        initialMode={shareModalState.initialMode || appSettings.defaultShareMode || 'share'}
-        defaultShareMode={appSettings.defaultShareMode || 'share'}
-        onClose={() => setShareModalState({ isOpen: false, doc: null, pageIndex: 0 })}
-        onOpenExport={(doc, pageIndex) => setExportState({ doc, pageIndex })}
-        onOpenQrScanner={() => openScanner({ mode: 'qr' })}
-      />
+      <Suspense fallback={null}>
+        {shareModalState.isOpen && (
+          <QrShareModal
+            isOpen
+            document={shareModalState.doc}
+            availableDocuments={documents}
+            initialPageIndex={shareModalState.pageIndex}
+            initialMode={shareModalState.initialMode || appSettings.defaultShareMode || 'share'}
+            defaultShareMode={appSettings.defaultShareMode || 'share'}
+            onClose={() => setShareModalState({ isOpen: false, doc: null, pageIndex: 0 })}
+            onOpenExport={(doc, pageIndex) => setExportState({ doc, pageIndex })}
+            onOpenQrScanner={() => openScanner({ mode: 'qr' })}
+          />
+        )}
+      </Suspense>
 
-      <ProjectEditModal
-        document={editingProjectDoc}
-        onClose={() => setEditingProjectDoc(null)}
-        onSaveChanges={(nextDoc) => {
-          handleUpdateDocument(nextDoc);
-          setEditingProjectDoc(nextDoc);
-        }}
-        onDeleteProject={handleDeleteDocument}
-      />
+      <Suspense fallback={null}>
+        {editingProjectDoc && (
+          <ProjectEditModal
+            document={editingProjectDoc}
+            onClose={() => setEditingProjectDoc(null)}
+            onSaveChanges={(nextDoc) => {
+              handleUpdateDocument(nextDoc);
+              setEditingProjectDoc(nextDoc);
+            }}
+            onDeleteProject={handleDeleteDocument}
+          />
+        )}
+      </Suspense>
 
-      <SignatureModal
-        isOpen={librarySignatureModalOpen}
-        onClose={() => setLibrarySignatureModalOpen(false)}
-        onSaveSignature={handleSaveSignature}
-        onSaveAsDocument={handleSaveSignatureAsDocument}
-        primaryButtonLabel="Save Signature Stamp"
-      />
+      <Suspense fallback={null}>
+        {librarySignatureModalOpen && (
+          <SignatureModal
+            isOpen
+            onClose={() => setLibrarySignatureModalOpen(false)}
+            onSaveSignature={handleSaveSignature}
+            onSaveAsDocument={handleSaveSignatureAsDocument}
+            primaryButtonLabel="Save Signature Stamp"
+          />
+        )}
+      </Suspense>
 
-      <ExportModal
-        document={exportState?.doc || null}
-        activePageIndex={exportState?.pageIndex || 0}
-        initialSelectedPages={exportState?.selectedPages}
-        defaultPaperSize={appSettings.defaultPaperSize}
-        defaultQuality={appSettings.defaultPdfQuality}
-        defaultExportFormat={appSettings.defaultExportFormat}
-        defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
-        defaultSearchablePdf={appSettings.searchablePdfByDefault}
-        onClose={() => setExportState(null)}
-      />
+      <Suspense fallback={null}>
+        {exportState && (
+          <ExportModal
+            document={exportState.doc}
+            activePageIndex={exportState.pageIndex}
+            initialSelectedPages={exportState.selectedPages}
+            defaultPaperSize={appSettings.defaultPaperSize}
+            defaultQuality={appSettings.defaultPdfQuality}
+            defaultExportFormat={appSettings.defaultExportFormat}
+            defaultFilenamePrefix={appSettings.defaultFilenamePrefix}
+            defaultSearchablePdf={appSettings.searchablePdfByDefault}
+            onClose={() => setExportState(null)}
+          />
+        )}
+      </Suspense>
 
-      <OnboardingFlow
-        isOpen={shouldShowOnboarding}
-        initialSettings={appSettings}
-        isReplay={onboardingReplayOpen}
-        onComplete={(patch) => {
-          handleUpdateSettings(patch);
-          setOnboardingReplayOpen(false);
-        }}
-        onSkip={() => {
-          if (!appSettings.hasCompletedOnboarding) {
-            handleUpdateSettings({ hasCompletedOnboarding: true });
-          }
-          setOnboardingReplayOpen(false);
-        }}
-      />
+      <Suspense fallback={null}>
+        {shouldShowOnboarding && (
+          <OnboardingFlow
+            isOpen
+            initialSettings={appSettings}
+            isReplay={onboardingReplayOpen}
+            onComplete={(patch) => {
+              handleUpdateSettings(patch);
+              setOnboardingReplayOpen(false);
+            }}
+            onSkip={() => {
+              if (!appSettings.hasCompletedOnboarding) {
+                handleUpdateSettings({ hasCompletedOnboarding: true });
+              }
+              setOnboardingReplayOpen(false);
+            }}
+          />
+        )}
+      </Suspense>
 
-      <KotlinBlueprintModal
-        isOpen={kotlinModalOpen}
-        onClose={() => setKotlinModalOpen(false)}
-      />
+      <Suspense fallback={null}>
+        {kotlinModalOpen && (
+          <KotlinBlueprintModal isOpen onClose={() => setKotlinModalOpen(false)} />
+        )}
+      </Suspense>
     </div>
   );
 }

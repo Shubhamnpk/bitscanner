@@ -260,7 +260,7 @@ function convexHull(points: Point2D[]): Point2D[] {
 
 /**
  * Reduces a convex polygon down to 4 vertices by iteratively dropping the vertex
- * whose removal loses the minimum triangle area — accurately recovering true corners
+ * whose removal loses the minimum triangle area - accurately recovering true corners
  * at ANY rotation angle (including 35-45 deg rotated ID cards and documents).
  */
 function simplifyHullToQuad(hull: Point2D[]): QuadCorners | null {
